@@ -1,29 +1,28 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from config import Config
 
-# Crear la app Flask
 app = Flask(__name__)
 app.config.from_object(Config)
 CORS(app)
 
-# Inicializar extensiones
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
-# ======= MODELOS =======
-
+# ========================
+# MODELOS
+# ========================
 class Usuario(db.Model):
     __tablename__ = "usuarios"
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    rol = db.Column(db.String(20), default="usuario")  # 'usuario' o 'admin'
+    rol = db.Column(db.String(20), default="usuario")
     tareas = db.relationship("Tarea", backref="usuario", lazy=True)
 
     def to_dict(self):
@@ -51,13 +50,91 @@ class Tarea(db.Model):
             "usuario_id": self.usuario_id
         }
 
-# ======= RUTA DE PRUEBA =======
+# ========================
+# RUTAS API
+# ========================
+
 @app.route("/api")
 def index():
     return jsonify({"mensaje": "API del Gestor de Tareas funcionando correctamente."})
 
-# ======= EJECUTAR SERVIDOR =======
+
+@app.route("/api/register", methods=["POST"])
+def register():
+    data = request.get_json()
+    nombre = data.get("nombre")
+    email = data.get("email")
+    password = data.get("password")
+
+    if not nombre or not email or not password:
+        return jsonify({"error": "Faltan campos obligatorios"}), 400
+
+    if Usuario.query.filter_by(email=email).first():
+        return jsonify({"error": "El correo ya está registrado"}), 400
+
+    hashed_password = bcrypt.generate_password_hash(password).decode("utf-8")
+
+    nuevo_usuario = Usuario(nombre=nombre, email=email, password=hashed_password)
+    db.session.add(nuevo_usuario)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Usuario registrado con éxito"}), 201
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    usuario = Usuario.query.filter_by(email=email).first()
+
+    if not usuario or not bcrypt.check_password_hash(usuario.password, password):
+        return jsonify({"error": "Credenciales incorrectas"}), 401
+
+    access_token = create_access_token(identity=str(usuario.id))
+    return jsonify({
+        "mensaje": "Inicio de sesión correcto",
+        "token": access_token,
+        "usuario": usuario.to_dict()
+    }), 200
+
+
+# ======= CRUD DE TAREAS (ANTES DE app.run) =======
+@app.route("/api/tareas", methods=["GET"])
+@jwt_required()
+def obtener_tareas():
+    user_id = get_jwt_identity()
+    tareas = Tarea.query.filter_by(usuario_id=user_id).all()
+    return jsonify([t.to_dict() for t in tareas]), 200
+
+
+@app.route("/api/tareas", methods=["POST"])
+@jwt_required()
+def crear_tarea():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    titulo = data.get("titulo")
+    descripcion = data.get("descripcion")
+
+    if not titulo:
+        return jsonify({"error": "El título es obligatorio"}), 400
+
+    nueva_tarea = Tarea(
+        titulo=titulo,
+        descripcion=descripcion,
+        usuario_id=user_id
+    )
+    db.session.add(nueva_tarea)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Tarea creada correctamente"}), 201
+
+# ======= FIN CRUD =======
+
+
+# ======= EJECUCIÓN DEL SERVIDOR (al final del archivo) =======
 if __name__ == "__main__":
     with app.app_context():
-        db.create_all()  # Crea la base de datos si no existe
+        db.create_all()
     app.run(debug=True)
