@@ -109,6 +109,8 @@ def obtener_tareas():
     return jsonify([t.to_dict() for t in tareas]), 200
 
 
+
+# ======= CREAR TAREA =======
 @app.route("/api/tareas", methods=["POST"])
 @jwt_required()
 def crear_tarea():
@@ -129,6 +131,41 @@ def crear_tarea():
     db.session.commit()
 
     return jsonify({"mensaje": "Tarea creada correctamente"}), 201
+
+
+# ======= ACTUALIZAR TAREA =======
+@app.route("/api/tareas/<int:tarea_id>", methods=["PUT"])
+@jwt_required()
+def actualizar_tarea(tarea_id):
+    user_id = get_jwt_identity()
+    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=user_id).first()
+
+    if not tarea:
+        return jsonify({"error": "Tarea no encontrada"}), 404
+
+    data = request.get_json()
+    tarea.titulo = data.get("titulo", tarea.titulo)
+    tarea.descripcion = data.get("descripcion", tarea.descripcion)
+    tarea.completada = data.get("completada", tarea.completada)
+
+    db.session.commit()
+    return jsonify({"mensaje": "Tarea actualizada correctamente"}), 200
+
+
+# ======= ELIMINAR TAREA =======
+@app.route("/api/tareas/<int:tarea_id>", methods=["DELETE"])
+@jwt_required()
+def eliminar_tarea(tarea_id):
+    user_id = get_jwt_identity()
+    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=user_id).first()
+
+    if not tarea:
+        return jsonify({"error": "Tarea no encontrada"}), 404
+
+    db.session.delete(tarea)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Tarea eliminada correctamente"}), 200
 
 # ======= FIN CRUD =======
 
