@@ -39,6 +39,8 @@ class Tarea(db.Model):
     titulo = db.Column(db.String(150), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
     completada = db.Column(db.Boolean, default=False)
+    prioridad = db.Column(db.String(10), default="media")  # NUEVO
+    fecha_limite = db.Column(db.String(20), nullable=True) # NUEVO
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False)
 
     def to_dict(self):
@@ -47,8 +49,11 @@ class Tarea(db.Model):
             "titulo": self.titulo,
             "descripcion": self.descripcion,
             "completada": self.completada,
+            "prioridad": self.prioridad,
+            "fecha_limite": self.fecha_limite,
             "usuario_id": self.usuario_id
         }
+
 
 # ========================
 # RUTAS API

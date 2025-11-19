@@ -5,6 +5,8 @@ import Login from "../pages/Login.vue";
 import Register from "../pages/Register.vue";
 import Tareas from "../pages/Tareas.vue";
 
+import { session } from "../store/session";   // <-- IMPORTANTE
+
 const routes = [
   { path: "/", redirect: "/login" },
 
@@ -24,14 +26,11 @@ const router = createRouter({
   routes,
 });
 
-// Protección de rutas
+// Protección de rutas usando session
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem("token");
-
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !session.token) {
     return next("/login");
   }
-
   next();
 });
 

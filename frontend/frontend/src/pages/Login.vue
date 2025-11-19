@@ -28,17 +28,41 @@ async function login() {
 </script>
 
 <template>
-  <div>
-    <h1>Login</h1>
+  <div style="text-align: center;">
+    <h1 style="margin-bottom: 20px;">Iniciar sesión</h1>
 
-    <input v-model="email" placeholder="Email" />
-    <br /><br />
+    <div style="display: flex; flex-direction: column; gap: 15px;">
 
-    <input v-model="password" type="password" placeholder="Contraseña" />
-    <br /><br />
+      <input 
+        v-model="email" 
+        placeholder="Email" 
+        style="padding: 10px; border-radius: 6px;"
+      />
 
-    <button @click="login">Entrar</button>
+      <input 
+        v-model="password" 
+        type="password" 
+        placeholder="Contraseña"
+        style="padding: 10px; border-radius: 6px;"
+      />
 
-    <p>{{ mensaje }}</p>
+      <button 
+        @click="login"
+        style="
+          padding: 12px;
+          background: #4caf50;
+          border: none;
+          color: white;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 16px;
+        "
+      >
+        Entrar
+      </button>
+
+      <p>{{ mensaje }}</p>
+
+    </div>
   </div>
 </template>
