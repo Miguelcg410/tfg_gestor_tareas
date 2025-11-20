@@ -3,19 +3,21 @@ import Navbar from "./components/Navbar.vue";
 </script>
 
 <template>
-  <Navbar />
+  <v-app>
+    <Navbar />
 
-  <main
-    style="
-      max-width: 800px;
-      margin: 30px auto;
-      padding: 20px;
-      background: #1e1e1e;
-      color: white;
-      border-radius: 10px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    "
-  >
-    <router-view />
-  </main>
+    <v-main>
+      <div class="page-container">
+        <router-view />
+      </div>
+    </v-main>
+  </v-app>
 </template>
+
+<style>
+.page-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+}
+</style>

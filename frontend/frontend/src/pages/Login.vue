@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
-import api from "../services/api";
 import { useRouter } from "vue-router";
+import api from "../services/api";
 import { session } from "../store/session";
 
 const email = ref("");
@@ -17,52 +17,61 @@ async function login() {
       password: password.value,
     });
 
-    session.login(res.data.token); // Guardar token en store
-    mensaje.value = "Inicio de sesión correcto";
-
-    router.push("/tareas"); // Redirigir
-  } catch (error) {
+    session.login(res.data.token);
+    router.push("/tareas");
+  } catch (e) {
     mensaje.value = "Credenciales incorrectas";
   }
 }
 </script>
 
 <template>
-  <div style="text-align: center;">
-    <h1 style="margin-bottom: 20px;">Iniciar sesión</h1>
+  <v-container class="d-flex justify-center mt-12">
+    <v-card width="420" elevation="8">
+      <v-card-title class="text-h5 text-center">
+        Iniciar Sesión
+      </v-card-title>
 
-    <div style="display: flex; flex-direction: column; gap: 15px;">
+      <v-card-text>
+        <v-text-field
+          v-model="email"
+          label="Email"
+          variant="outlined"
+          prepend-icon="mdi-email"
+          type="email"
+          required
+        />
 
-      <input 
-        v-model="email" 
-        placeholder="Email" 
-        style="padding: 10px; border-radius: 6px;"
-      />
+        <v-text-field
+          v-model="password"
+          label="Contraseña"
+          variant="outlined"
+          prepend-icon="mdi-lock"
+          type="password"
+          required
+        />
 
-      <input 
-        v-model="password" 
-        type="password" 
-        placeholder="Contraseña"
-        style="padding: 10px; border-radius: 6px;"
-      />
+        <p v-if="mensaje" class="text-red text-center mt-2">{{ mensaje }}</p>
+      </v-card-text>
 
-      <button 
-        @click="login"
-        style="
-          padding: 12px;
-          background: #4caf50;
-          border: none;
-          color: white;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 16px;
-        "
-      >
-        Entrar
-      </button>
+      <v-card-actions class="d-flex flex-column">
+        <v-btn
+          block
+          color="primary"
+          class="mb-2"
+          @click="login"
+        >
+          Entrar
+        </v-btn>
 
-      <p>{{ mensaje }}</p>
-
-    </div>
-  </div>
+        <v-btn
+          block
+          variant="text"
+          @click="router.push('/register')"
+        >
+          Crear cuenta
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-container>
 </template>

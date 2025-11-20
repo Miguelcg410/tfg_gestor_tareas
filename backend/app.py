@@ -121,8 +121,11 @@ def obtener_tareas():
 def crear_tarea():
     user_id = get_jwt_identity()
     data = request.get_json()
+
     titulo = data.get("titulo")
     descripcion = data.get("descripcion")
+    prioridad = data.get("prioridad")      # 👈 NUEVO
+    fecha_limite = data.get("fecha_limite")  # 👈 NUEVO
 
     if not titulo:
         return jsonify({"error": "El título es obligatorio"}), 400
@@ -130,12 +133,16 @@ def crear_tarea():
     nueva_tarea = Tarea(
         titulo=titulo,
         descripcion=descripcion,
+        prioridad=prioridad,
+        fecha_limite=fecha_limite,
         usuario_id=user_id
     )
+
     db.session.add(nueva_tarea)
     db.session.commit()
 
     return jsonify({"mensaje": "Tarea creada correctamente"}), 201
+
 
 
 # ======= ACTUALIZAR TAREA =======

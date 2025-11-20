@@ -14,7 +14,7 @@ async function crear() {
       titulo: titulo.value,
       descripcion: descripcion.value,
       prioridad: prioridad.value,
-      fecha_limite: fechaLimite.value
+      fecha_limite: fechaLimite.value,
     });
 
     mensaje.value = "Tarea creada con éxito";
@@ -23,60 +23,61 @@ async function crear() {
     descripcion.value = "";
     prioridad.value = "media";
     fechaLimite.value = "";
-
-  } catch (error) {
-    mensaje.value = error.response?.data?.error || "Error al crear tarea";
+  } catch (e) {
+    mensaje.value = "Error al crear tarea";
   }
 }
 </script>
 
 <template>
-  <div>
-    <h2>Crear nueva tarea</h2>
+  <v-card class="pa-4 mt-4" elevation="8">
+    <v-card-title class="text-h6">
+      Crear nueva tarea
+    </v-card-title>
 
-    <input v-model="titulo" placeholder="Título de la tarea" />
+    <v-card-text>
+      <v-text-field
+        v-model="titulo"
+        label="Título"
+        prepend-icon="mdi-format-title"
+        variant="outlined"
+        required
+      />
 
-    <textarea v-model="descripcion" placeholder="Descripción"></textarea>
+      <v-textarea
+        v-model="descripcion"
+        label="Descripción"
+        prepend-icon="mdi-text"
+        variant="outlined"
+      />
 
-    <label>Prioridad</label>
-    <select v-model="prioridad">
-      <option value="alta">Alta</option>
-      <option value="media">Media</option>
-      <option value="baja">Baja</option>
-    </select>
+      <v-select
+        v-model="prioridad"
+        label="Prioridad"
+        :items="[
+          { title: 'Alta', value: 'alta' },
+          { title: 'Media', value: 'media' },
+          { title: 'Baja', value: 'baja' },
+        ]"
+        prepend-icon="mdi-flag"
+        variant="outlined"
+      />
 
-    <label>Fecha límite</label>
-    <input type="date" v-model="fechaLimite" />
+      <v-text-field
+        v-model="fechaLimite"
+        label="Fecha límite"
+        type="date"
+        prepend-icon="mdi-calendar"
+        variant="outlined"
+      />
 
-    <button @click="crear">Crear tarea</button>
+      <p v-if="mensaje" class="text-green mt-2">{{ mensaje }}</p>
+    </v-card-text>
 
-    <p>{{ mensaje }}</p>
-  </div>
+    <v-card-actions>
+      <v-btn block color="primary" @click="crear">
+        Crear tarea
+      </v-btn>
+    </v-card-actions>
+  </v-card>
 </template>
-
-<style scoped>
-input, textarea, select {
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 8px;
-  border-radius: 6px;
-  background: #333;
-  border: none;
-  color: white;
-}
-
-button {
-  padding: 10px;
-  width: 100%;
-  border: none;
-  border-radius: 6px;
-  background: #4caf50;
-  color: white;
-  cursor: pointer;
-}
-
-label {
-  display: block;
-  margin-bottom: 5px;
-}
-</style>
