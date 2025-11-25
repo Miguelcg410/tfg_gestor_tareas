@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import Login from "../pages/Login.vue";
 import Register from "../pages/Register.vue";
 import Tareas from "../pages/Tareas.vue";
-
+import Calendario from "../pages/Calendario.vue";
 import { session } from "../store/session";   // <-- IMPORTANTE
 
 const routes = [
@@ -12,7 +12,7 @@ const routes = [
 
   { path: "/login", component: Login },
   { path: "/register", component: Register },
-
+  { path: "/calendario", component: Calendario, meta: { requiresAuth: true } },
   // Ruta protegida
   { 
     path: "/tareas", 
