@@ -1,23 +1,36 @@
 <script setup>
+import { ref, onMounted } from "vue";
+import SplashScreen from "./components/SplashScreen.vue";
 import Navbar from "./components/Navbar.vue";
+
+const loaded = ref(false);
+
+onMounted(() => {
+  setTimeout(() => {
+    loaded.value = true;
+  }, 2000);
+});
 </script>
 
 <template>
   <v-app>
-    <Navbar />
-
-    <v-main>
-      <div class="page-container">
+    <!-- Splash SOLO mientras loaded es false -->
+    <SplashScreen v-if="!loaded" />
+    
+    <!-- App completa cuando loaded es true -->
+    <template v-else>
+      <Navbar />
+      <v-main>
         <router-view />
-      </div>
-    </v-main>
+      </v-main>
+    </template>
   </v-app>
 </template>
 
 <style>
-.page-container {
-  max-width: 900px;
-  margin: 40px auto;
-  padding: 20px;
+html, body {
+  background: #0b0b0b;
+  margin: 0;
+  padding: 0;
 }
 </style>

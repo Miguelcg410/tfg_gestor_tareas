@@ -3,6 +3,9 @@ import { computed } from "vue";
 import { useRouter } from "vue-router";
 import { session } from "../store/session";
 
+// Importamos el logo sin fondo
+import Logo from "@/assets/logo/order-dragon-logo.png";
+
 const router = useRouter();
 const loggedIn = computed(() => session.token !== null);
 
@@ -20,15 +23,15 @@ function logout() {
   >
     <v-container class="d-flex align-center">
 
-      <!-- LOGO -->
-      <div class="d-flex align-center cursor-pointer" @click="$router.push('/tareas')">
-        <v-icon size="32" color="primary">mdi-check-circle</v-icon>
-        <span class="logo-text ml-3">Task Manager Pro</span>
+      <!-- LOGO + NOMBRE -->
+      <div class="logo-container" @click="$router.push('/tareas')">
+        <img :src="Logo" alt="Order Dragon Logo" class="logo-img" />
+        <span class="logo-text">Order Dragon</span>
       </div>
 
       <v-spacer />
 
-      <!-- SOLO LOGUEADO -->
+      <!-- SOLO SI ESTÁ LOGUEADO -->
       <template v-if="loggedIn">
 
         <v-btn
@@ -66,25 +69,47 @@ function logout() {
 </template>
 
 <style scoped>
-/* Fondo moderno con blur */
+/* ---- NAVBAR ---- */
 .nav-blur {
   background: rgba(30, 30, 30, 0.75) !important;
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Logo */
+/* ---- LOGO Y TEXTO ---- */
+.logo-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.logo-img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  image-rendering: high-quality;
+  filter: drop-shadow(0 0 3px rgba(255, 80, 80, 0.35));
+  transition: transform 0.25s ease;
+}
+
+.logo-container:hover .logo-img {
+  transform: scale(1.07);
+}
+
 .logo-text {
-  font-size: 22px;
-  font-weight: 700;
-  color: white;
+  font-size: 50px;
+  font-weight: 750;
+  margin-left: 10px;
+  color: #ffdddd;
+  letter-spacing: 1px;
+  font-family: "Cinzel", serif; /* Opción medieval premium */
 }
 
-/* Botones de navegación */
+/* ---- BOTONES ---- */
 .nav-btn {
   color: #cfcfcf !important;
   font-weight: 500;
-  margin-right: 8px;
+  margin-right: 10px;
   text-transform: none;
   letter-spacing: .3px;
   transition: 0.25s ease;
@@ -95,15 +120,11 @@ function logout() {
   transform: translateY(-1px);
 }
 
-/* Botón de logout */
+/* ---- BOTÓN SALIR ---- */
 .logout-btn {
   margin-left: 10px;
   font-weight: 600;
-  color: white;
   text-transform: none;
-}
-
-.cursor-pointer {
-  cursor: pointer;
+  color: white;
 }
 </style>

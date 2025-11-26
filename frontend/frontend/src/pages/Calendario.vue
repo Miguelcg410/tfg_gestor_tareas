@@ -1,350 +1,333 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import api from "../services/api";
+import { ref, computed } from "vue";
 
-// ----- Estado -----
-const focused = ref(new Date()); // fecha que determina la semana mostrada (any day inside the week)
-const weekDates = ref([]); // array de fechas (YYYY-MM-DD) para el lunes->domingo de la semana
-const tareas = ref([]); // todas las tareas desde backend
-const notasPorFecha = ref({}); // notas locales cargadas desde localStorage
-const nuevaNotaMap = ref({}); // texto temporal por día para el input
-
-const NOTES_KEY = "gestor_calendario_notes_v1";
-
-// ----- utilidades de fecha -----
-function toDateKey(d) {
-  if (!d) return null;
-  const dt = d instanceof Date ? d : new Date(d);
-  // convertir a YYYY-MM-DD en zona local
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+// =======================
+// NOTAS (localStorage)
+// =======================
+const notas = ref(JSON.parse(localStorage.getItem("notasCalendario") || "{}"));
+function guardarNotas() {
+  localStorage.setItem("notasCalendario", JSON.stringify(notas.value));
 }
 
-function startOfWeek(date) {
-  // queremos lunes como primer día
-  const d = new Date(date);
-  const day = d.getDay(); // 0 dom ... 6 sab
-  const diffToMonday = (day === 0) ? -6 : 1 - day; // si domingo -> volver 6 días para lunes
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  monday.setHours(0,0,0,0);
-  return monday;
+// =======================
+// FECHAS Y SEMANAS
+// =======================
+const hoy = new Date();
+const semanaActual = ref(0);
+
+function obtenerLunes(offset = 0) {
+  const fecha = new Date(hoy);
+  const dia = fecha.getDay();
+  const lunes = fecha.getDate() - (dia === 0 ? 6 : dia - 1);
+  fecha.setDate(lunes + offset * 7);
+  return fecha;
 }
 
-function buildWeekDates(dateInWeek) {
-  const monday = startOfWeek(dateInWeek);
-  const arr = [];
+const semanaCompleta = computed(() => {
+  const lunes = obtenerLunes(semanaActual.value);
+  const dias = [];
   for (let i = 0; i < 7; i++) {
-    const dd = new Date(monday);
-    dd.setDate(monday.getDate() + i);
-    arr.push(toDateKey(dd));
+    const d = new Date(lunes);
+    d.setDate(lunes.getDate() + i);
+    dias.push({
+      fecha: d,
+      nombre: d.toLocaleDateString("es-ES", { weekday: "long" }),
+      fechaTexto: d.toLocaleDateString("es-ES", { day: "numeric", month: "short" }),
+      fechaISO: d.toISOString().split("T")[0],
+    });
   }
-  return arr;
-}
-
-function formatDayLabel(dateKey) {
-  const d = new Date(dateKey);
-  // Ej: Lun 10 Feb
-  return d.toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
-}
-
-function isPast(dateKey) {
-  const todayKey = toDateKey(new Date());
-  return new Date(dateKey) < new Date(todayKey);
-}
-
-// ----- localStorage notas -----
-function loadNotes() {
-  try {
-    const raw = localStorage.getItem(NOTES_KEY);
-    notasPorFecha.value = raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    console.error("Error leyendo notas localStorage", e);
-    notasPorFecha.value = {};
-  }
-}
-
-function saveNotes() {
-  try {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notasPorFecha.value));
-  } catch (e) {
-    console.error("Error guardando notas localStorage", e);
-  }
-}
-
-function addNote(dateKey) {
-  const text = (nuevaNotaMap.value[dateKey] || "").trim();
-  if (!text) return;
-  if (!notasPorFecha.value[dateKey]) notasPorFecha.value[dateKey] = [];
-  notasPorFecha.value[dateKey].push({
-    id: Date.now() + Math.floor(Math.random() * 999),
-    text,
-    created_at: new Date().toISOString()
-  });
-  nuevaNotaMap.value[dateKey] = "";
-  saveNotes();
-}
-
-function deleteNote(dateKey, id) {
-  if (!notasPorFecha.value[dateKey]) return;
-  notasPorFecha.value[dateKey] = notasPorFecha.value[dateKey].filter(n => n.id !== id);
-  saveNotes();
-}
-
-// ----- tareas (desde backend) -----
-async function cargarTareas() {
-  try {
-    const res = await api.get("/tareas");
-    tareas.value = res.data || [];
-  } catch (e) {
-    console.error("Error cargando tareas:", e);
-    tareas.value = [];
-  }
-}
-
-function tareasParaFecha(dateKey) {
-  return tareas.value.filter(t => {
-    if (!t.fecha_limite) return false;
-    const key = toDateKey(t.fecha_limite);
-    return key === dateKey;
-  });
-}
-
-// ----- navegación semana -----
-function shiftWeeks(n) {
-  const d = new Date(focused.value);
-  d.setDate(d.getDate() + n * 7);
-  focused.value = d;
-  weekDates.value = buildWeekDates(focused.value);
-}
-
-function goToday() {
-  focused.value = new Date();
-  weekDates.value = buildWeekDates(focused.value);
-}
-
-// ----- computed útiles -----
-const weekRangeLabel = computed(() => {
-  if (!weekDates.value.length) return "";
-  const first = new Date(weekDates.value[0]);
-  const last = new Date(weekDates.value[6]);
-  const formattedFirst = first.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-  const formattedLast = last.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
-  return `${formattedFirst} — ${formattedLast}`;
+  return dias;
 });
 
-// iniciar
-onMounted(async () => {
-  weekDates.value = buildWeekDates(focused.value);
-  loadNotes();
-  await cargarTareas();
-  // inicializar inputs vacíos para cada día
-  weekDates.value.forEach(k => { nuevaNotaMap.value[k] = ""; });
+const inicioSemana = computed(() => semanaCompleta.value[0].fecha);
+const finSemana = computed(() => semanaCompleta.value[6].fecha);
+
+function formatoFechaSemana(fecha) {
+  return fecha.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+}
+
+// =======================
+// Notas
+// =======================
+const diaSeleccionado = ref("");
+const nuevaNota = ref("");
+const dialog = ref(false);
+
+function abrirDialog(fechaISO) {
+  diaSeleccionado.value = fechaISO;
+  nuevaNota.value = "";
+  dialog.value = true;
+}
+
+function guardarNota() {
+  if (!notas.value[diaSeleccionado.value]) {
+    notas.value[diaSeleccionado.value] = [];
+  }
+  notas.value[diaSeleccionado.value].push(nuevaNota.value);
+  dialog.value = false;
+  guardarNotas();
+}
+
+function semanaAnterior() {
+  semanaActual.value--;
+}
+
+function semanaSiguiente() {
+  semanaActual.value++;
+}
+
+const diaNotas = computed(() => {
+  return notas.value;
 });
 </script>
 
 <template>
-  <v-container fluid class="pa-4">
-    <!-- cabecera con navegación -->
-    <div class="d-flex align-center mb-4 header-row">
-      <div class="d-flex align-center">
-        <v-btn icon variant="tonal" @click="shiftWeeks(-1)" title="Semana anterior">
-          <v-icon>mdi-chevron-left</v-icon>
-        </v-btn>
-        <v-btn variant="tonal" class="mx-2" @click="goToday">Hoy</v-btn>
-        <v-btn icon variant="tonal" @click="shiftWeeks(1)" title="Semana siguiente">
-          <v-icon>mdi-chevron-right</v-icon>
-        </v-btn>
-      </div>
-
-      <div class="mx-4 title-range">
-        <h3 class="mb-0">Semana: {{ weekRangeLabel }}</h3>
-        <div class="text-caption">Lunes → Domingo</div>
-      </div>
-
-      <v-spacer />
-
-      <div>
-        <v-btn variant="outlined" color="primary" @click="() => { weekDates = buildWeekDates(new Date()); }">
-          Reiniciar semana
-        </v-btn>
-      </div>
-    </div>
-
-    <!-- fila semanal horizontal (scrollable) -->
-    <div class="week-row" ref="weekRow">
-      <div
-        v-for="dateKey in weekDates"
-        :key="dateKey"
-        class="day-card"
-        :class="{ past: isPast(dateKey) }"
-      >
-        <div class="day-header d-flex align-center">
-          <div>
-            <div class="day-name">{{ formatDayLabel(dateKey) }}</div>
-            <div class="day-sub">{{ new Date(dateKey).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric' }) }}</div>
-          </div>
-          <v-spacer />
-          <div>
-            <v-chip small>{{ (tareasParaFecha(dateKey) || []).length }} tareas</v-chip>
-          </div>
+  <div class="calendar-page-wrapper">
+    <div class="calendar-page">
+      <div class="calendar-inner">
+        <!-- CABECERA -->
+        <div class="week-header">
+          <v-btn icon @click="semanaAnterior"><v-icon>mdi-chevron-left</v-icon></v-btn>
+          <h2 class="week-title">
+            Semana del {{ formatoFechaSemana(inicioSemana) }}
+            al {{ formatoFechaSemana(finSemana) }}
+          </h2>
+          <v-btn icon @click="semanaSiguiente"><v-icon>mdi-chevron-right</v-icon></v-btn>
         </div>
 
-        <div class="day-body">
-          <!-- tareas del día -->
-          <div v-if="tareasParaFecha(dateKey).length === 0" class="no-tasks text-caption">Sin tareas</div>
-
-          <div v-else>
-            <v-list dense class="task-list">
-              <v-list-item
-                v-for="t in tareasParaFecha(dateKey)"
-                :key="t.id"
-                class="task-item"
+        <!-- GRID DE LA SEMANA -->
+        <div class="week-grid">
+          <div
+            v-for="dia in semanaCompleta"
+            :key="dia.fechaISO"
+            class="day-card"
+          >
+            <h3>{{ dia.nombre }}</h3>
+            <p class="date-text">{{ dia.fechaTexto }}</p>
+            <v-divider class="my-2" />
+            <div class="notes-box">
+              <div
+                v-for="(nota, i) in diaNotas[dia.fechaISO]"
+                :key="i"
+                class="note-item"
               >
-                <v-list-item-content>
-                  <v-list-item-title :class="{ overdue: (new Date(t.fecha_limite) < new Date() && !t.completada) }">
-                    {{ t.titulo }}
-                  </v-list-item-title>
-                  <v-list-item-subtitle class="text-caption">{{ t.descripcion }}</v-list-item-subtitle>
-                </v-list-item-content>
-                <v-list-item-action>
-                  <v-chip small :color="t.prioridad === 'alta' ? 'error' : t.prioridad === 'media' ? 'warning' : 'success'" text-color="white">
-                    {{ t.prioridad }}
-                  </v-chip>
-                </v-list-item-action>
-              </v-list-item>
-            </v-list>
+                {{ nota }}
+              </div>
+            </div>
+            <v-btn block color="primary" class="mt-2" @click="abrirDialog(dia.fechaISO)">
+              + Añadir nota
+            </v-btn>
           </div>
-
-          <v-divider class="my-2"></v-divider>
-
-          <!-- notas del día -->
-          <div class="notes-title mb-2">Notas</div>
-          <div v-if="!(notasPorFecha[dateKey] && notasPorFecha[dateKey].length)">
-            <div class="text-caption">Sin notas</div>
-          </div>
-
-          <v-list dense class="notes-list" v-else>
-            <v-list-item v-for="n in (notasPorFecha[dateKey] || [])" :key="n.id">
-              <v-list-item-content>
-                <v-list-item-title class="note-text">{{ n.text }}</v-list-item-title>
-                <v-list-item-subtitle class="text-caption">{{ new Date(n.created_at).toLocaleString('es-ES') }}</v-list-item-subtitle>
-              </v-list-item-content>
-              <v-list-item-action>
-                <v-btn icon small color="red" @click="deleteNote(dateKey, n.id)">
-                  <v-icon>mdi-delete</v-icon>
-                </v-btn>
-              </v-list-item-action>
-            </v-list-item>
-          </v-list>
-
-          <!-- añadir nota inline -->
-          <v-textarea
-            v-model="nuevaNotaMap[dateKey]"
-            rows="2"
-            placeholder="Añadir nota..."
-            class="mt-2"
-            density="compact"
-          />
-          <v-btn small color="primary" class="mt-2" @click="addNote(dateKey)">Agregar nota</v-btn>
         </div>
       </div>
+
+      <!-- DIALOGO NOTA -->
+      <v-dialog v-model="dialog" max-width="400">
+        <v-card>
+          <v-card-title>Añadir nota</v-card-title>
+          <v-card-text>
+            <v-textarea v-model="nuevaNota" label="Contenido de la nota" />
+          </v-card-text>
+          <v-card-actions>
+            <v-btn text @click="dialog = false">Cancelar</v-btn>
+            <v-btn text color="primary" @click="guardarNota">Guardar</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </div>
-  </v-container>
+  </div>
 </template>
 
 <style scoped>
-/* layout general */
-.header-row .title-range h3 { margin: 0; color: white; }
-.header-row .title-range .text-caption { color: rgba(255,255,255,0.6); }
-
-.week-row {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding-bottom: 10px;
-  margin-top: 6px;
-  -webkit-overflow-scrolling: touch;
+/* ========================================
+   WRAPPER - Anula estilos del padre
+   ======================================== */
+.calendar-page-wrapper {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
 }
 
-/* cada día (columna) */
-.day-card {
-  min-width: 360px;
-  max-width: 360px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* día pasado */
-.day-card.past {
-  opacity: 0.9;
-  filter: grayscale(0.02);
-}
-
-/* encabezado del día */
-.day-header .day-name {
-  font-weight: 800;
-  font-size: 15px;
-  color: white;
-}
-.day-header .day-sub {
-  font-size: 12px;
-  color: rgba(255,255,255,0.65);
-}
-
-/* body */
-.day-body {
+/* ========================================
+   PÁGINA COMPLETA - SIN MÁRGENES
+   ======================================== */
+.calendar-page {
+  background: #0f0f0f;
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 420px;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+}
+
+/* Contenedor interno: SIN padding lateral */
+.calendar-inner {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* ========================================
+   CABECERA
+   ======================================== */
+.week-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin: 20px 0;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.week-title {
+  font-size: 26px;
+  font-weight: bold;
+  text-align: center;
+  color: #fff;
+}
+
+.week-header .v-btn {
+  height: 44px;
+  width: 44px;
+}
+
+/* ========================================
+   GRID - CERO padding lateral
+   ======================================== */
+.week-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
   overflow-y: auto;
+  padding: 0 8px 8px 8px;
+  margin: 0;
+  box-sizing: border-box;
 }
 
-/* tareas */
-.task-list .v-list-item {
-  padding: 6px 0;
-}
-.task-item .v-list-item-title {
-  font-weight: 700;
-  color: white;
-}
-.overdue {
-  text-decoration: line-through;
-  color: rgba(255,255,255,0.55);
+/* Scroll personalizado */
+.week-grid::-webkit-scrollbar {
+  width: 8px;
 }
 
-/* notas */
-.notes-title {
-  font-weight: 700;
-  color: white;
-}
-.note-text {
-  color: rgba(255,255,255,0.92);
-}
-
-/* textarea */
-.v-textarea textarea {
-  background: rgba(0,0,0,0.22) !important;
-  color: white !important;
+.week-grid::-webkit-scrollbar-thumb {
+  background: #333;
   border-radius: 8px;
-  padding: 8px;
 }
 
-/* botones */
-.v-btn {
-  text-transform: none;
+.week-grid::-webkit-scrollbar-track {
+  background: #1a1a1a;
 }
 
-/* responsive: en pantallas pequeñas reduce min-width */
-@media (max-width: 900px) {
-  .day-card { min-width: 300px; max-width: 300px; }
+/* ========================================
+   TARJETAS DE DÍAS
+   ======================================== */
+.day-card {
+  background: #181818;
+  border-radius: 14px;
+  padding: 18px;
+  border: 1px solid #2e2e2e;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.day-card h3 {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-transform: capitalize;
+}
+
+.date-text {
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+/* Caja de notas - crece para llenar espacio */
+.notes-box {
+  flex: 1;
+  overflow-y: auto;
+  margin: 10px 0;
+  min-height: 100px;
+}
+
+.notes-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notes-box::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+/* Nota individual */
+.note-item {
+  background: #252525;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  color: #ddd;
+  font-size: 14px;
+  word-wrap: break-word;
+}
+
+/* Botón de añadir nota */
+.day-card .v-btn {
+  flex-shrink: 0;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+@media (max-width: 1200px) {
+  .week-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .week-header {
+    margin: 16px 0;
+  }
+  
+  .week-title {
+    font-size: 20px;
+  }
+  
+  .week-grid {
+    gap: 10px;
+    padding: 0 6px 6px 6px;
+  }
+  
+  .day-card {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  .week-grid {
+    grid-template-columns: 1fr;
+    padding: 0 4px 4px 4px;
+  }
+  
+  .day-card {
+    min-height: 300px;
+  }
 }
 </style>
