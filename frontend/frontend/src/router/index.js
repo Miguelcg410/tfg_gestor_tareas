@@ -7,6 +7,7 @@ import Tareas from "../pages/Tareas.vue";
 import Calendario from "../pages/Calendario.vue";
 import { session } from "../store/session";   // <-- IMPORTANTE
 
+
 const routes = [
   { path: "/", redirect: "/login" },
 

@@ -17,13 +17,19 @@ async function login() {
       password: password.value,
     });
 
+    // Guardar token en tu session store
     session.login(res.data.token);
+
+    // ⭐ NECESARIO PARA QUE EL BACKEND NO DEVUELVA 401 ⭐
+    localStorage.setItem("token", res.data.token);
+
     router.push("/tareas");
   } catch (e) {
     mensaje.value = "Credenciales incorrectas";
   }
 }
 </script>
+
 
 <template>
   <v-container class="d-flex justify-center mt-12">

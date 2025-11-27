@@ -1,13 +1,32 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import api from "../services/api"; // ⬅️ usamos tu cliente axios
 
 // =======================
-// NOTAS (localStorage)
+// TAREAS DEL BACKEND
 // =======================
-const notas = ref(JSON.parse(localStorage.getItem("notasCalendario") || "{}"));
-function guardarNotas() {
-  localStorage.setItem("notasCalendario", JSON.stringify(notas.value));
+const tareas = ref([]); // aquí guardamos todas las tareas del usuario
+
+async function cargarTareas() {
+  try {
+    const res = await api.get("/tareas"); // GET http://localhost:5000/api/tareas
+    tareas.value = res.data;
+  } catch (e) {
+    console.error("Error cargando tareas para el calendario", e);
+  }
 }
+
+// Agrupamos tareas por fecha_limite -> { "2025-11-28": [tarea1, tarea2], ... }
+const diaNotas = computed(() => {
+  const mapa = {};
+  for (const t of tareas.value) {
+    // solo usamos las que tienen fecha_limite
+    if (!t.fecha_limite) continue;
+    if (!mapa[t.fecha_limite]) mapa[t.fecha_limite] = [];
+    mapa[t.fecha_limite].push(t);
+  }
+  return mapa;
+});
 
 // =======================
 // FECHAS Y SEMANAS
@@ -47,7 +66,7 @@ function formatoFechaSemana(fecha) {
 }
 
 // =======================
-// Notas
+// NOTAS (CREAR DESDE CALENDARIO)
 // =======================
 const diaSeleccionado = ref("");
 const nuevaNota = ref("");
@@ -59,15 +78,29 @@ function abrirDialog(fechaISO) {
   dialog.value = true;
 }
 
-function guardarNota() {
-  if (!notas.value[diaSeleccionado.value]) {
-    notas.value[diaSeleccionado.value] = [];
+// ⬅️ AHORA GUARDAMOS EN EL BACK
+async function guardarNota() {
+  if (!nuevaNota.value.trim()) return;
+
+  try {
+    await api.post("/tareas", {
+      titulo: "Nota del calendario",
+      descripcion: nuevaNota.value,
+      prioridad: "media",
+      fecha_limite: diaSeleccionado.value, // clave para el calendario
+    });
+
+    dialog.value = false;
+    nuevaNota.value = "";
+    await cargarTareas(); // recargamos desde el back
+  } catch (e) {
+    console.error("Error guardando nota del calendario", e);
   }
-  notas.value[diaSeleccionado.value].push(nuevaNota.value);
-  dialog.value = false;
-  guardarNotas();
 }
 
+// =======================
+// NAVEGACIÓN SEMANAS
+// =======================
 function semanaAnterior() {
   semanaActual.value--;
 }
@@ -76,173 +109,172 @@ function semanaSiguiente() {
   semanaActual.value++;
 }
 
-const diaNotas = computed(() => {
-  return notas.value;
+// =======================
+// EXPANDIR DÍA
+// =======================
+const diaExpandido = ref(null);
+
+function toggleExpand(fechaISO) {
+  diaExpandido.value = diaExpandido.value === fechaISO ? null : fechaISO;
+}
+
+// =======================
+// INICIO: CARGAR TAREAS
+// =======================
+onMounted(() => {
+  cargarTareas();
 });
 </script>
 
-<template>
-  <div class="calendar-page-wrapper">
-    <div class="calendar-page">
-      <div class="calendar-inner">
-        <!-- CABECERA -->
-        <div class="week-header">
-          <v-btn icon @click="semanaAnterior"><v-icon>mdi-chevron-left</v-icon></v-btn>
-          <h2 class="week-title">
-            Semana del {{ formatoFechaSemana(inicioSemana) }}
-            al {{ formatoFechaSemana(finSemana) }}
-          </h2>
-          <v-btn icon @click="semanaSiguiente"><v-icon>mdi-chevron-right</v-icon></v-btn>
-        </div>
 
-        <!-- GRID DE LA SEMANA -->
-        <div class="week-grid">
-          <div
-            v-for="dia in semanaCompleta"
-            :key="dia.fechaISO"
-            class="day-card"
-          >
-            <h3>{{ dia.nombre }}</h3>
-            <p class="date-text">{{ dia.fechaTexto }}</p>
-            <v-divider class="my-2" />
-            <div class="notes-box">
-              <div
-                v-for="(nota, i) in diaNotas[dia.fechaISO]"
-                :key="i"
-                class="note-item"
-              >
-                {{ nota }}
-              </div>
+<template>
+  <div class="calendar-page">
+    <div class="calendar-inner">
+      
+      <!-- CABECERA -->
+      <div class="week-header">
+        <v-btn icon @click="semanaAnterior">
+          <v-icon>mdi-chevron-left</v-icon>
+        </v-btn>
+
+        <h2 class="week-title">
+          Semana del {{ formatoFechaSemana(inicioSemana) }}
+          al {{ formatoFechaSemana(finSemana) }}
+        </h2>
+
+        <v-btn icon @click="semanaSiguiente">
+          <v-icon>mdi-chevron-right</v-icon>
+        </v-btn>
+      </div>
+
+      <!-- GRID -->
+      <div class="week-grid">
+        <div
+          v-for="dia in semanaCompleta"
+          :key="dia.fechaISO"
+          class="day-card"
+          :class="{ expanded: diaExpandido === dia.fechaISO }"
+          @click="toggleExpand(dia.fechaISO)"
+        >
+          <h3>{{ dia.nombre }}</h3>
+          <p class="date-text">{{ dia.fechaTexto }}</p>
+
+          <v-divider class="my-2" />
+
+          <!-- NOTAS -->
+          <div class="notes-box">
+            <div
+              v-for="(nota, i) in diaNotas[dia.fechaISO]"
+              :key="i"
+              class="note-item"
+            >
+              {{ nota }}
             </div>
-            <v-btn block color="primary" class="mt-2" @click="abrirDialog(dia.fechaISO)">
-              + Añadir nota
-            </v-btn>
+
+            <div
+              v-if="!diaNotas[dia.fechaISO] || diaNotas[dia.fechaISO].length === 0"
+              class="empty-notes"
+            >
+              No hay notas
+            </div>
           </div>
+
+          <!-- BOTÓN AÑADIR -->
+          <v-btn block color="primary" class="mt-2" @click.stop="abrirDialog(dia.fechaISO)">
+            + Añadir nota
+          </v-btn>
         </div>
       </div>
 
-      <!-- DIALOGO NOTA -->
+      <!-- DIALOGO -->
       <v-dialog v-model="dialog" max-width="400">
-        <v-card>
+        <v-card class="papiro-modal">
           <v-card-title>Añadir nota</v-card-title>
           <v-card-text>
-            <v-textarea v-model="nuevaNota" label="Contenido de la nota" />
+            <v-textarea v-model="nuevaNota" label="Contenido" />
           </v-card-text>
           <v-card-actions>
             <v-btn text @click="dialog = false">Cancelar</v-btn>
-            <v-btn text color="primary" @click="guardarNota">Guardar</v-btn>
+            <v-btn text color="green" @click="guardarNota">Guardar</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ========================================
-   WRAPPER - Anula estilos del padre
-   ======================================== */
-.calendar-page-wrapper {
-  position: fixed;
-  top: 64px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: 0 !important;
-  padding: 0 !important;
-  max-width: none !important;
-}
-
-/* ========================================
-   PÁGINA COMPLETA - SIN MÁRGENES
-   ======================================== */
+/* =====================
+   CONTENEDOR PRINCIPAL - CENTRADO
+   ===================== */
 .calendar-page {
   background: #0f0f0f;
-  height: 100%;
-  width: 100%;
+  min-height: calc(100vh - 64px);
   display: flex;
-  flex-direction: column;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: hidden;
-}
-
-/* Contenedor interno: SIN padding lateral */
-.calendar-inner {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  margin: 0;
+  justify-content: center;
+  padding: 30px 20px;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
-/* ========================================
+.calendar-inner {
+  width: 100%;
+  max-width: 1400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* =====================
    CABECERA
-   ======================================== */
+   ===================== */
 .week-header {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 24px;
-  margin: 20px 0;
-  padding: 0;
-  flex-shrink: 0;
+  margin-bottom: 24px;
+  width: 100%;
+  animation: fadeWeek .45s ease;
 }
 
 .week-title {
   font-size: 26px;
   font-weight: bold;
-  text-align: center;
   color: #fff;
 }
 
-.week-header .v-btn {
-  height: 44px;
-  width: 44px;
-}
-
-/* ========================================
-   GRID - CERO padding lateral
-   ======================================== */
+/* =====================
+   GRID SEMANAL - CENTRADO
+   ===================== */
 .week-grid {
-  flex: 1;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 12px;
-  overflow-y: auto;
-  padding: 0 8px 8px 8px;
-  margin: 0;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 18px;
+  width: 100%;
+  max-width: 1300px;
   box-sizing: border-box;
+  animation: fadeWeek .45s ease;
 }
 
-/* Scroll personalizado */
-.week-grid::-webkit-scrollbar {
-  width: 8px;
+@keyframes fadeWeek {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-.week-grid::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 8px;
-}
-
-.week-grid::-webkit-scrollbar-track {
-  background: #1a1a1a;
-}
-
-/* ========================================
-   TARJETAS DE DÍAS
-   ======================================== */
+/* =====================
+   DÍA DEL CALENDARIO
+   ===================== */
 .day-card {
   background: #181818;
   border-radius: 14px;
-  padding: 18px;
   border: 1px solid #2e2e2e;
+  padding: 18px;
+  min-height: 420px;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  transition: all .25s ease;
+  cursor: pointer;
 }
 
 .day-card h3 {
@@ -259,7 +291,29 @@ const diaNotas = computed(() => {
   margin-bottom: 8px;
 }
 
-/* Caja de notas - crece para llenar espacio */
+.day-card:hover {
+  transform: scale(1.03) rotate(0.3deg);
+  border-color: #444;
+}
+
+/* EXPANDIDO */
+.day-card.expanded {
+  transform: scale(1.08) rotate(-0.4deg);
+  min-height: 460px;
+  z-index: 10;
+  border: 3px solid rgba(255, 180, 80, 0.9);
+  box-shadow: 0 25px 80px rgba(0,0,0,0.8);
+  animation: expandMedieval .35s ease;
+}
+
+@keyframes expandMedieval {
+  0% { transform: scale(0.92) rotate(0deg); opacity: 0.8; }
+  100% { transform: scale(1.08) rotate(-0.4deg); opacity: 1; }
+}
+
+/* =====================
+   CAJA DE NOTAS
+   ===================== */
 .notes-box {
   flex: 1;
   overflow-y: auto;
@@ -276,25 +330,63 @@ const diaNotas = computed(() => {
   border-radius: 4px;
 }
 
-/* Nota individual */
+/* =====================
+   NOTAS ESTILO POST-IT MEDIEVAL
+   ===================== */
 .note-item {
-  background: #252525;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  color: #ddd;
-  font-size: 14px;
+  background-image: url("/textures/postit_ordedragon.png");
+  background-size: cover;
+  background-position: center;
+  border-radius: 12px;
+  border: 2px solid rgba(70, 40, 20, 0.55);
+  padding: 14px;
+  margin-bottom: 10px;
+  color: #3b260f;
+  font-family: "MedievalSharp", cursive;
+  font-weight: bold;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  cursor: pointer;
+  animation: popIn .35s ease;
+  transition: transform .18s ease;
   word-wrap: break-word;
 }
 
-/* Botón de añadir nota */
-.day-card .v-btn {
-  flex-shrink: 0;
+.note-item:hover {
+  transform: scale(1.05);
 }
 
-/* ========================================
+@keyframes popIn {
+  0% { transform: scale(0.75); opacity: 0; }
+  80% { transform: scale(1.03); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.empty-notes {
+  text-align: center;
+  font-style: italic;
+  color: #777;
+  padding: 20px;
+}
+
+/* =====================
+   MODAL ESTILO PAPIRO
+   ===================== */
+.papiro-modal {
+  background-image: url("/textures/postit_ordedragon.png");
+  background-size: cover;
+  border: 3px solid rgba(70,40,20,0.9);
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+  animation: fadeSlide .35s ease;
+}
+
+@keyframes fadeSlide {
+  0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* =====================
    RESPONSIVE
-   ======================================== */
+   ===================== */
 @media (max-width: 1200px) {
   .week-grid {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -302,8 +394,12 @@ const diaNotas = computed(() => {
 }
 
 @media (max-width: 768px) {
+  .calendar-page {
+    padding: 20px 12px;
+  }
+  
   .week-header {
-    margin: 16px 0;
+    margin-bottom: 16px;
   }
   
   .week-title {
@@ -311,19 +407,18 @@ const diaNotas = computed(() => {
   }
   
   .week-grid {
-    gap: 10px;
-    padding: 0 6px 6px 6px;
+    gap: 12px;
   }
   
   .day-card {
     padding: 14px;
+    min-height: 350px;
   }
 }
 
 @media (max-width: 600px) {
   .week-grid {
     grid-template-columns: 1fr;
-    padding: 0 4px 4px 4px;
   }
   
   .day-card {

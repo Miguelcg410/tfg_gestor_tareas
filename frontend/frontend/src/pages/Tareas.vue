@@ -8,7 +8,12 @@ const mensaje = ref("");
 const modoEdicion = ref(null);
 const nuevoTitulo = ref("");
 const nuevaDescripcion = ref("");
-const filtro = ref("all"); // all | completed | pending | alta | proximas
+const filtro = ref("all");
+
+// AGREGADO: propiedad expanded para animación
+function toggleExpand(t) {
+  t.expanded = !t.expanded;
+}
 
 // ==============================
 // CARGAR TAREAS
@@ -16,7 +21,10 @@ const filtro = ref("all"); // all | completed | pending | alta | proximas
 async function cargarTareas() {
   try {
     const res = await api.get("/tareas");
-    tareas.value = res.data;
+
+    // inicializamos expanded
+    tareas.value = res.data.map(t => ({ ...t, expanded: false }));
+
     mensaje.value = "Tareas cargadas correctamente";
   } catch (e) {
     console.error(e);
@@ -69,7 +77,7 @@ function editar(t) {
 
 async function guardarCambios(t) {
   try {
-    await api.put(`/t.id`, {
+    await api.put(`/tareas/${t.id}`, {
       titulo: nuevoTitulo.value,
       descripcion: nuevaDescripcion.value,
       prioridad: t.prioridad,
@@ -144,7 +152,6 @@ const filteredTareas = computed(() => {
 
 function setFiltro(nuevo) {
   filtro.value = nuevo;
-
   setTimeout(() => {
     const el = document.getElementById("lista-tareas");
     if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -159,13 +166,12 @@ function clearFiltro() {
 <template>
   <v-container class="mt-8">
 
-    <!-- HEADER -->
+    <!-- HEADER con icono NUEVO y SIN "Material Design Pro" -->
     <div class="d-flex align-center mb-6">
       <div class="header-left d-flex align-center">
-        <v-icon size="36" class="mr-3" color="primary">mdi-rocket-launch</v-icon>
+        <v-icon size="36" class="mr-3" color="primary">mdi-notebook-outline</v-icon>
         <div>
           <h2 class="text-h4 mb-0">Mis tareas</h2>
-          <div class="text-caption text-grey">Material Design PRO — High</div>
         </div>
       </div>
 
@@ -243,8 +249,16 @@ function clearFiltro() {
         <transition-group name="fade-slide" tag="div" class="w-100">
 
           <v-col v-for="t in filteredTareas" :key="t.id" cols="12">
-            <v-card class="task-card" elevation="8" :style="{ borderLeft: '6px solid ' + colorPrioridad(t.prioridad) }">
 
+            <v-card
+              class="task-card"
+              elevation="8"
+              :class="{ expanded: t.expanded }"
+              @click="toggleExpand(t)"
+              :style="{ borderLeft: '6px solid ' + colorPrioridad(t.prioridad) }"
+            >
+
+              <!-- EDITANDO -->
               <div v-if="modoEdicion === t.id" class="pa-4">
                 <v-text-field v-model="nuevoTitulo" label="Nuevo título" dense />
                 <v-textarea v-model="nuevaDescripcion" label="Nueva descripción" dense />
@@ -255,28 +269,34 @@ function clearFiltro() {
                 </div>
               </div>
 
+              <!-- NORMAL -->
               <div v-else class="pa-4 d-flex align-center">
 
-                <div class="left-col d-flex align-center">
-                  <v-checkbox :model-value="t.completada" @update:model-value="() => cambiarEstado(t)" />
+                <div class="left-col d-flex align-center" @click.stop>
+                  <v-checkbox :model-value="t.completada" @update:model-value="()=> cambiarEstado(t)" />
                 </div>
 
-                <div class="body-col" style="flex:1;">
+                <div class="body-col" style="flex: 1;">
                   <div class="d-flex align-center">
                     <div class="task-title" :class="{ done: t.completada }">{{ t.titulo }}</div>
-                    <v-chip class="ml-3" small :style="{ backgroundColor: colorPrioridad(t.prioridad), color: 'white' }">{{ t.prioridad }}</v-chip>
+                    <v-chip class="ml-3" small :style="{ backgroundColor: colorPrioridad(t.prioridad), color: 'white' }">
+                      {{ t.prioridad }}
+                    </v-chip>
                   </div>
-                  <div class="task-desc text-caption text-grey mt-2">{{ t.descripcion }}</div>
+
+                  <div v-if="t.expanded" class="task-desc text-caption text-grey mt-2">
+                    {{ t.descripcion }}
+                  </div>
                 </div>
 
                 <div class="right-col d-flex align-center">
                   <div class="date-badge mr-3">{{ formatoFecha(t.fecha_limite) }}</div>
 
-                  <v-btn icon small color="orange" @click="editar(t)">
+                  <v-btn icon small color="orange" @click.stop="editar(t)">
                     <v-icon>mdi-pencil</v-icon>
                   </v-btn>
 
-                  <v-btn icon small color="red" @click="eliminarTarea(t.id)">
+                  <v-btn icon small color="red" @click.stop="eliminarTarea(t.id)">
                     <v-icon>mdi-delete</v-icon>
                   </v-btn>
                 </div>
@@ -284,6 +304,7 @@ function clearFiltro() {
               </div>
 
             </v-card>
+
           </v-col>
 
         </transition-group>
@@ -296,7 +317,21 @@ function clearFiltro() {
 
 <style scoped>
 /********************************************
- MATERIAL DESIGN HIGH — ESTILO PRO 
+ CARD EXPAND (nuevo)
+********************************************/
+.task-card {
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all .25s ease;
+}
+.task-card.expanded {
+  transform: scale(1.03);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.55);
+  padding-bottom: 20px;
+}
+
+/********************************************
+ MATERIAL DESIGN PRO — YA NO APARECE
 ********************************************/
 
 /* DASHBOARD */
@@ -346,18 +381,6 @@ function clearFiltro() {
   color: white;
 }
 
-/* TASK CARD */
-.task-card {
-  border-radius: 14px;
-  overflow: hidden;
-  transition: transform .18s ease, box-shadow .18s ease;
-  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));
-}
-.task-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 25px 60px rgba(0,0,0,0.55);
-}
-
 /* TEXTOS */
 .task-title {
   font-weight: 800;
@@ -394,6 +417,53 @@ function clearFiltro() {
 .fade-slide-enter-to {
   opacity: 1;
   transform: translateY(0);
+}
+/* PAPEL / PAPIRO MEDIEVAL PARA LAS TAREAS */
+.task-card {
+  background-image: url("/textures/quemado.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 12px;
+  border: 2px solid rgba(80, 50, 20, 0.7);
+  box-shadow: 0 12px 45px rgba(0,0,0,0.55);
+  padding: 14px;
+  transition: all .25s ease;
+}
+
+/* Cuando se expande */
+.task-card.expanded {
+  transform: scale(1.04);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+
+/* TÍTULO ESTILO RUNAS MEDIEVALES */
+.task-title {
+  font-family: "Cinzel", serif;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #3b260f;
+}
+
+/* DESCRIPCIÓN */
+.task-desc {
+  font-family: "MedievalSharp", cursive;
+  color: #4a3417 !important;
+}
+
+/* CHIP DE PRIORIDAD ESTILO SELLO */
+.v-chip {
+  border-radius: 8px;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+}
+
+/* FECHA COMO ETIQUETA DE PERGAMINO */
+.date-badge {
+  background: rgba(200,180,130,0.45);
+  border: 1px solid rgba(100,70,30,0.5);
+  color: #3a2a12;
+  font-family: "Cinzel", serif;
 }
 
 </style>

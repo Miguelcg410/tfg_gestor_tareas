@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token
 from config import Config
 
 app = Flask(__name__)
@@ -16,6 +16,7 @@ jwt = JWTManager(app)
 # ========================
 # MODELOS
 # ========================
+
 class Usuario(db.Model):
     __tablename__ = "usuarios"
     id = db.Column(db.Integer, primary_key=True)
@@ -33,14 +34,15 @@ class Usuario(db.Model):
             "rol": self.rol
         }
 
+
 class Tarea(db.Model):
     __tablename__ = "tareas"
     id = db.Column(db.Integer, primary_key=True)
     titulo = db.Column(db.String(150), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
     completada = db.Column(db.Boolean, default=False)
-    prioridad = db.Column(db.String(10), default="media")  # NUEVO
-    fecha_limite = db.Column(db.String(20), nullable=True) # NUEVO
+    prioridad = db.Column(db.String(10), default="media")
+    fecha_limite = db.Column(db.String(20), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=False)
 
     def to_dict(self):
@@ -61,9 +63,10 @@ class Tarea(db.Model):
 
 @app.route("/api")
 def index():
-    return jsonify({"mensaje": "API del Gestor de Tareas funcionando correctamente."})
+    return jsonify({"mensaje": "API funcionando correctamente"})
 
 
+# ----------- REGISTRO -----------
 @app.route("/api/register", methods=["POST"])
 def register():
     data = request.get_json()
@@ -86,6 +89,7 @@ def register():
     return jsonify({"mensaje": "Usuario registrado con éxito"}), 201
 
 
+# ----------- LOGIN -----------
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json()
@@ -97,35 +101,37 @@ def login():
     if not usuario or not bcrypt.check_password_hash(usuario.password, password):
         return jsonify({"error": "Credenciales incorrectas"}), 401
 
-    access_token = create_access_token(identity=str(usuario.id))
+    token = create_access_token(identity=usuario.id)
+
     return jsonify({
         "mensaje": "Inicio de sesión correcto",
-        "token": access_token,
+        "token": token,
         "usuario": usuario.to_dict()
     }), 200
 
 
-# ======= CRUD DE TAREAS (ANTES DE app.run) =======
+# ================================
+#   CRUD DE TAREAS SIN JWT
+#   (totalmente desbloqueado por ahora)
+# ================================
+
+# ----- OBTENER TAREAS -----
 @app.route("/api/tareas", methods=["GET"])
-@jwt_required()
 def obtener_tareas():
-    user_id = get_jwt_identity()
-    tareas = Tarea.query.filter_by(usuario_id=user_id).all()
+    tareas = Tarea.query.all()
     return jsonify([t.to_dict() for t in tareas]), 200
 
 
-
-# ======= CREAR TAREA =======
+# ----- CREAR TAREA -----
 @app.route("/api/tareas", methods=["POST"])
-@jwt_required()
 def crear_tarea():
-    user_id = get_jwt_identity()
     data = request.get_json()
 
     titulo = data.get("titulo")
     descripcion = data.get("descripcion")
-    prioridad = data.get("prioridad")      # 👈 NUEVO
-    fecha_limite = data.get("fecha_limite")  # 👈 NUEVO
+    prioridad = data.get("prioridad")
+    fecha_limite = data.get("fecha_limite")
+    usuario_id = data.get("usuario_id", 1)  # Temporal: usuario #1
 
     if not titulo:
         return jsonify({"error": "El título es obligatorio"}), 400
@@ -135,7 +141,7 @@ def crear_tarea():
         descripcion=descripcion,
         prioridad=prioridad,
         fecha_limite=fecha_limite,
-        usuario_id=user_id
+        usuario_id=usuario_id
     )
 
     db.session.add(nueva_tarea)
@@ -144,32 +150,30 @@ def crear_tarea():
     return jsonify({"mensaje": "Tarea creada correctamente"}), 201
 
 
-
-# ======= ACTUALIZAR TAREA =======
+# ----- ACTUALIZAR TAREA -----
 @app.route("/api/tareas/<int:tarea_id>", methods=["PUT"])
-@jwt_required()
 def actualizar_tarea(tarea_id):
-    user_id = get_jwt_identity()
-    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=user_id).first()
+    tarea = Tarea.query.filter_by(id=tarea_id).first()
 
     if not tarea:
         return jsonify({"error": "Tarea no encontrada"}), 404
 
     data = request.get_json()
+
     tarea.titulo = data.get("titulo", tarea.titulo)
     tarea.descripcion = data.get("descripcion", tarea.descripcion)
     tarea.completada = data.get("completada", tarea.completada)
+    tarea.prioridad = data.get("prioridad", tarea.prioridad)
+    tarea.fecha_limite = data.get("fecha_limite", tarea.fecha_limite)
 
     db.session.commit()
     return jsonify({"mensaje": "Tarea actualizada correctamente"}), 200
 
 
-# ======= ELIMINAR TAREA =======
+# ----- ELIMINAR TAREA -----
 @app.route("/api/tareas/<int:tarea_id>", methods=["DELETE"])
-@jwt_required()
 def eliminar_tarea(tarea_id):
-    user_id = get_jwt_identity()
-    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=user_id).first()
+    tarea = Tarea.query.filter_by(id=tarea_id).first()
 
     if not tarea:
         return jsonify({"error": "Tarea no encontrada"}), 404
@@ -179,10 +183,10 @@ def eliminar_tarea(tarea_id):
 
     return jsonify({"mensaje": "Tarea eliminada correctamente"}), 200
 
-# ======= FIN CRUD =======
 
-
-# ======= EJECUCIÓN DEL SERVIDOR (al final del archivo) =======
+# ========================
+# EJECUCIÓN
+# ========================
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
