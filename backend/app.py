@@ -183,6 +183,18 @@ def eliminar_tarea(tarea_id):
 
     return jsonify({"mensaje": "Tarea eliminada correctamente"}), 200
 
+# ======= TAREAS POR FECHA (para el Calendario) =======
+@app.route("/api/tareas_por_fecha", methods=["GET"])
+def tareas_por_fecha():
+    fecha = request.args.get("fecha")  # formato YYYY-MM-DD
+
+    if not fecha:
+        return jsonify({"error": "Falta la fecha"}), 400
+
+    # Buscar tareas cuya fecha limite coincida con el día seleccionado
+    tareas = Tarea.query.filter_by(fecha_limite=fecha).all()
+
+    return jsonify([t.to_dict() for t in tareas]), 200
 
 # ========================
 # EJECUCIÓN
