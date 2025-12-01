@@ -322,8 +322,16 @@ function clearFiltro() {
 .task-card {
   border-radius: 14px;
   overflow: hidden;
-  transition: all .25s ease;
+  transition: transform .25s ease, box-shadow .25s ease;
+  background-image: url("/textures/quemado.jpg");
+  background-size: cover;
+  background-position: center;
+  border: 3px solid rgba(80,40,10,0.65);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+  filter: brightness(1.05) contrast(1.1);
 }
+
+
 .task-card.expanded {
   transform: scale(1.03);
   box-shadow: 0 30px 60px rgba(0,0,0,0.55);
@@ -383,10 +391,13 @@ function clearFiltro() {
 
 /* TEXTOS */
 .task-title {
-  font-weight: 800;
-  font-size: 16px;
-  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+  color: #3a1f0a;
+  font-family: 'Cinzel', serif;
+  text-shadow: 1px 1px 1px rgba(255,210,140,0.4);
 }
+
 .task-title.done {
   text-decoration: line-through;
   opacity: 0.6;
@@ -447,23 +458,30 @@ function clearFiltro() {
 
 /* DESCRIPCIÓN */
 .task-desc {
-  font-family: "MedievalSharp", cursive;
-  color: #4a3417 !important;
+  font-family: 'MedievalSharp', cursive;
+  color: #4a2b18;
+  font-size: 14px;
+  opacity: 0.9;
 }
+
 
 /* CHIP DE PRIORIDAD ESTILO SELLO */
 .v-chip {
-  border-radius: 8px;
-  font-weight: bold;
-  box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-family: 'Cinzel', serif;
+  border: 1px solid rgba(50,25,10,0.5);
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.3);
 }
+
 
 /* FECHA COMO ETIQUETA DE PERGAMINO */
 .date-badge {
-  background: rgba(200,180,130,0.45);
-  border: 1px solid rgba(100,70,30,0.5);
-  color: #3a2a12;
-  font-family: "Cinzel", serif;
+  background: rgba(110,50,20,0.25);
+  border: 2px solid rgba(150,80,30,0.65);
+  font-family: 'Cinzel', serif;
+  color: #3a1f0a;
 }
+
 
 </style>
