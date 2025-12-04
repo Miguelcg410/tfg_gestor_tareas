@@ -116,7 +116,7 @@ function toggleExpand(fechaISO) {
 }
 
 // =======================
-// NAVEGAR SEMANAS (FALTABA)
+// NAVEGAR SEMANAS
 // =======================
 function semanaAnterior() {
   semanaActual.value--;
@@ -132,15 +132,17 @@ function semanaSiguiente() {
 onMounted(() => cargarTareas());
 </script>
 
-
-
 <template>
   <div class="calendar-page">
     <div class="calendar-inner">
       
       <!-- CABECERA -->
       <div class="week-header">
-        <v-btn icon @click="semanaAnterior">
+        <v-btn 
+          icon 
+          class="nav-week-btn" 
+          @click="semanaAnterior"
+        >
           <v-icon>mdi-chevron-left</v-icon>
         </v-btn>
 
@@ -149,7 +151,11 @@ onMounted(() => cargarTareas());
           al {{ formatoFechaSemana(finSemana) }}
         </h2>
 
-        <v-btn icon @click="semanaSiguiente">
+        <v-btn 
+          icon 
+          class="nav-week-btn" 
+          @click="semanaSiguiente"
+        >
           <v-icon>mdi-chevron-right</v-icon>
         </v-btn>
       </div>
@@ -163,10 +169,12 @@ onMounted(() => cargarTareas());
           :class="{ expanded: diaExpandido === dia.fechaISO }"
           @click="toggleExpand(dia.fechaISO)"
         >
-          <h3>{{ dia.nombre }}</h3>
-          <p class="date-text">{{ dia.fechaTexto }}</p>
+          <div class="day-header">
+            <h3 class="day-name">{{ dia.nombre }}</h3>
+            <p class="date-text">{{ dia.fechaTexto }}</p>
+          </div>
 
-          <v-divider class="my-2" />
+          <v-divider class="my-2 divider-custom" />
 
           <!-- CAJA DE NOTAS -->
           <div class="notes-box">
@@ -178,67 +186,101 @@ onMounted(() => cargarTareas());
             >
               <div class="nota-titulo">{{ nota.titulo }}</div>
               <div class="nota-desc">{{ nota.descripcion }}</div>
-              <div class="nota-prio">Prioridad: {{ nota.prioridad }}</div>
+              <div class="nota-prio">
+                <span class="prio-badge" :class="`prio-${nota.prioridad}`">
+                  {{ nota.prioridad }}
+                </span>
+              </div>
             </div>
 
             <div
               v-if="!diaNotas[dia.fechaISO] || diaNotas[dia.fechaISO].length === 0"
               class="empty-notes"
             >
-              No hay notas
+              📜 No hay notas
             </div>
           </div>
 
           <!-- BOTÓN AÑADIR -->
-          <v-btn block color="primary" class="mt-2" @click.stop="abrirDialog(dia.fechaISO)">
-            + Añadir nota
+          <v-btn 
+            block 
+            class="add-note-btn mt-2" 
+            @click.stop="abrirDialog(dia.fechaISO)"
+          >
+            <v-icon left>mdi-plus-circle</v-icon>
+            Añadir nota
           </v-btn>
 
         </div>
       </div>
 
-
       <!-- MODAL NOTA AMPLIADA -->
-      <v-dialog v-model="dialogNota" max-width="480">
+      <v-dialog v-model="dialogNota" max-width="520">
         <v-card class="nota-expandida">
 
           <div class="sello-arcano"></div>
 
           <v-card-title class="titulo-expandido">
-            {{ notaSeleccionada?.titulo }}
+            🐉 {{ notaSeleccionada?.titulo }}
           </v-card-title>
 
           <v-card-text class="cuerpo-nota">
-            <p class="desc-expandida">{{ notaSeleccionada?.descripcion }}</p>
+            <div class="desc-expandida">{{ notaSeleccionada?.descripcion }}</div>
 
-            <p class="meta-expandida">
-              Prioridad: <strong>{{ notaSeleccionada?.prioridad }}</strong>
-            </p>
+            <div class="meta-info">
+              <div class="meta-item">
+                <v-icon size="18" color="#8b5a2b">mdi-flag</v-icon>
+                Prioridad: 
+                <span class="prio-badge-modal" :class="`prio-${notaSeleccionada?.prioridad}`">
+                  {{ notaSeleccionada?.prioridad }}
+                </span>
+              </div>
 
-            <p class="meta-expandida">
-              Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
-            </p>
+              <div class="meta-item">
+                <v-icon size="18" color="#8b5a2b">mdi-calendar</v-icon>
+                Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
+              </div>
+            </div>
           </v-card-text>
 
           <v-card-actions class="acciones-modal">
             <v-spacer />
-            <v-btn color="red" class="cerrar-btn" @click="dialogNota = false">Cerrar</v-btn>
+            <v-btn 
+              class="cerrar-btn" 
+              @click="dialogNota = false"
+            >
+              <v-icon left>mdi-close-circle</v-icon>
+              Cerrar
+            </v-btn>
           </v-card-actions>
 
         </v-card>
       </v-dialog>
 
-
       <!-- MODAL AÑADIR NOTA -->
-      <v-dialog v-model="dialog" max-width="400">
+      <v-dialog v-model="dialog" max-width="450">
         <v-card class="papiro-modal">
-          <v-card-title>Añadir nota</v-card-title>
+          <v-card-title class="modal-title">
+            <v-icon left color="#8b5a2b">mdi-feather</v-icon>
+            Añadir nota
+          </v-card-title>
           <v-card-text>
-            <v-textarea v-model="nuevaNota" label="Contenido" />
+            <v-textarea 
+              v-model="nuevaNota" 
+              label="Escribe tu nota aquí..." 
+              rows="4"
+              variant="outlined"
+              class="nota-textarea"
+            />
           </v-card-text>
-          <v-card-actions>
-            <v-btn text @click="dialog = false">Cancelar</v-btn>
-            <v-btn text color="green" @click="guardarNota">Guardar</v-btn>
+          <v-card-actions class="modal-actions">
+            <v-btn text class="cancel-btn" @click="dialog = false">
+              Cancelar
+            </v-btn>
+            <v-btn class="save-btn" @click="guardarNota">
+              <v-icon left>mdi-content-save</v-icon>
+              Guardar
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -247,138 +289,477 @@ onMounted(() => cargarTareas());
   </div>
 </template>
 
-
-
 <style scoped>
 /* =======================
-   ESTILOS
+   PAGE & LAYOUT
 ======================= */
-
-.nota-titulo { font-weight: bold; font-size: 15px; color: #2b1a0c; }
-.nota-desc { font-size: 13px; opacity: 0.8; margin-bottom: 6px; }
-.nota-prio { font-size: 11px; color: #5a3b1e; }
-
-/* Page */
 .calendar-page {
   background: #0f0f0f;
   min-height: calc(100vh - 64px);
-  display: flex; justify-content: center;
+  display: flex;
+  justify-content: center;
   padding: 30px 20px;
 }
 
-.calendar-inner { max-width: 1400px; width: 100%; }
-
-/* Week header */
-.week-header {
-  display: flex; align-items: center; justify-content: center;
-  gap: 24px; margin-bottom: 24px;
+.calendar-inner {
+  max-width: 1400px;
+  width: 100%;
 }
 
-.week-title { color: white; }
+/* =======================
+   WEEK HEADER
+======================= */
+.week-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 30px;
+  animation: fadeSlideDown 0.6s ease;
+}
 
-/* Grid */
+@keyframes fadeSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.week-title {
+  color: #ffe7cf;
+  font-size: 28px;
+  font-weight: 700;
+  font-family: "Cinzel", serif;
+  text-shadow: 0 0 15px rgba(255, 170, 80, 0.5);
+  letter-spacing: 0.5px;
+}
+
+.nav-week-btn {
+  background: rgba(255, 170, 80, 0.1) !important;
+  border: 2px solid rgba(255, 170, 80, 0.3);
+  transition: all 0.3s ease;
+}
+
+.nav-week-btn:hover {
+  background: rgba(255, 170, 80, 0.25) !important;
+  border-color: rgba(255, 170, 80, 0.6);
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(255, 170, 80, 0.4);
+}
+
+/* =======================
+   WEEK GRID
+======================= */
 .week-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(180px, 1fr));
-  gap: 18px;
+  gap: 20px;
+  animation: fadeIn 0.8s ease;
 }
 
-/* Card */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* =======================
+   DAY CARD
+======================= */
 .day-card {
-  background: #181818;
-  border-radius: 14px;
-  padding: 18px;
-  min-height: 420px;
-  transition: 0.25s;
+  background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%);
+  border-radius: 16px;
+  padding: 20px;
+  min-height: 450px;
+  border: 2px solid #2e2e2e;
   cursor: pointer;
-  border: 1px solid #2e2e2e;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
 }
 
+/* Brillo sutil en hover */
+.day-card::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,170,80,0.08) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.day-card:hover::before {
+  opacity: 1;
+}
+
+.day-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(255, 170, 80, 0.5);
+  box-shadow: 
+    0 12px 30px rgba(0, 0, 0, 0.5),
+    0 0 25px rgba(255, 170, 80, 0.15);
+}
+
+/* EXPANDIDO */
 .day-card.expanded {
-  transform: scale(1.08);
-  border: 3px solid #c78a3a;
-  box-shadow: 0 25px 80px rgba(0,0,0,0.8);
+  transform: scale(1.08) rotate(-0.5deg);
+  border: 3px solid rgba(255, 180, 80, 0.9);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(255, 170, 80, 0.4);
+  z-index: 100;
+  animation: expandPulse 0.4s ease;
 }
 
-/* Notes */
+@keyframes expandPulse {
+  0% {
+    transform: scale(0.95);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1.08) rotate(-0.5deg);
+  }
+}
+
+/* =======================
+   DAY HEADER
+======================= */
+.day-header {
+  margin-bottom: 12px;
+}
+
+.day-name {
+  color: #ffe7cf;
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: capitalize;
+  margin-bottom: 4px;
+  font-family: "Cinzel", serif;
+}
+
+.date-text {
+  color: #999;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.divider-custom {
+  border-color: rgba(255, 170, 80, 0.2) !important;
+}
+
+/* =======================
+   NOTES BOX
+======================= */
+.notes-box {
+  flex: 1;
+  overflow-y: auto;
+  margin: 12px 0;
+  padding-right: 4px;
+}
+
+.notes-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notes-box::-webkit-scrollbar-thumb {
+  background: rgba(255, 170, 80, 0.3);
+  border-radius: 10px;
+}
+
+.notes-box::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 170, 80, 0.5);
+}
+
+/* =======================
+   NOTE ITEM
+======================= */
 .note-item {
   background-image: url("/textures/postit_ordedragon.png");
   background-size: cover;
-  border-radius: 12px;
-  border: 2px solid rgba(70,40,20,0.55);
-  padding: 14px;
-  margin-bottom: 10px;
-  font-family: "MedievalSharp";
-  font-weight: bold;
+  border-radius: 14px;
+  border: 2px solid rgba(70, 40, 20, 0.6);
+  padding: 16px;
+  margin-bottom: 12px;
+  font-family: "MedievalSharp", cursive;
   cursor: pointer;
+  position: relative;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.empty-notes { text-align: center; padding: 20px; color: #777; }
+.note-item:hover {
+  transform: translateY(-3px) scale(1.03) rotate(1deg);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    0 0 15px rgba(255, 170, 80, 0.2);
+  border-color: rgba(255, 140, 60, 0.8);
+}
 
-/* ==========================
-   MODAL EXPANDIDO
-========================== */
+.nota-titulo {
+  font-weight: bold;
+  font-size: 16px;
+  color: #2b1a0c;
+  margin-bottom: 6px;
+}
 
+.nota-desc {
+  font-size: 13px;
+  color: #3b260f;
+  opacity: 0.85;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.nota-prio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prio-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prio-alta {
+  background: rgba(220, 38, 38, 0.2);
+  color: #991b1b;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+}
+
+.prio-media {
+  background: rgba(234, 179, 8, 0.2);
+  color: #854d0e;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.prio-baja {
+  background: rgba(34, 197, 94, 0.2);
+  color: #166534;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.empty-notes {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+  font-style: italic;
+  font-size: 15px;
+}
+
+/* =======================
+   ADD NOTE BUTTON
+======================= */
+.add-note-btn {
+  background: linear-gradient(135deg, #ff9b4d 0%, #ff7e1f 100%) !important;
+  color: white !important;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.5px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(255, 126, 31, 0.3);
+}
+
+.add-note-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 126, 31, 0.5);
+  background: linear-gradient(135deg, #ffab5d 0%, #ff8e2f 100%) !important;
+}
+
+/* =======================
+   MODAL NOTA EXPANDIDA
+======================= */
 .nota-expandida {
   position: relative;
   background-image: url("/textures/postit_ordedragon.png");
   background-size: cover;
   border-radius: 24px;
-  padding: 20px;
-  border: 3px solid rgba(90,40,15,0.85);
-  box-shadow: 0 0 22px rgba(255,150,60,0.35),
-              0 0 40px rgba(255,100,20,0.18);
+  padding: 30px;
+  border: 4px solid rgba(90, 40, 15, 0.9);
+  box-shadow: 
+    0 0 30px rgba(255, 150, 60, 0.4),
+    0 0 60px rgba(255, 100, 20, 0.2);
+  animation: modalAppear 0.4s ease;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .sello-arcano {
   position: absolute;
-  top: -18px;
-  right: -18px;
-  width: 110px;
-  height: 110px;
-
-  /* 🔥 hace el sello totalmente redondo */
+  top: -20px;
+  right: -20px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
-  overflow: hidden;
-
-  /* imagen del sello */
   background-image: url("/icons/orderdragon.png");
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
-
-  /* efecto */
-  opacity: 0.5;
-  animation: spin 8s linear infinite;
-
-  /* luz alrededor */
-  box-shadow: 0 0 12px rgba(255, 180, 80, 0.45);
-  filter: drop-shadow(0 0 4px rgba(255,200,120,0.35));
-
-  pointer-events: none;
+  opacity: 0.6;
+  animation: spinSeal 10s linear infinite;
+  box-shadow: 0 0 20px rgba(255, 180, 80, 0.5);
+  filter: drop-shadow(0 0 8px rgba(255, 200, 120, 0.4));
 }
 
-
-@keyframes spin {
+@keyframes spinSeal {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
-/* Modal text */
 .titulo-expandido {
   text-align: center;
-  font-size: 22px;
-  margin-bottom: 10px;
+  font-size: 26px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #3b260f;
+  font-family: "Cinzel", serif;
+}
+
+.desc-expandida {
+  font-size: 17px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  color: #2b1a0c;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(139, 90, 43, 0.3);
+}
+
+.meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
   color: #3b260f;
 }
 
-.desc-expandida { font-size: 16px; margin-bottom: 12px; }
-.meta-expandida { font-size: 14px; }
-
-/* Cerrar */
-.cerrar-btn {
-  background: rgba(150,0,0,0.9) !important;
-  color: white !important;
+.prio-badge-modal {
+  padding: 4px 12px;
+  border-radius: 14px;
   font-weight: bold;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.cerrar-btn {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+  color: white !important;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.cerrar-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+}
+
+/* =======================
+   MODAL AÑADIR NOTA
+======================= */
+.papiro-modal {
+  background-image: url("/textures/postit_ordedragon.png");
+  background-size: cover;
+  border-radius: 20px;
+  border: 3px solid rgba(70, 40, 20, 0.85);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal-title {
+  font-family: "Cinzel", serif;
+  font-size: 22px;
+  color: #3b260f;
+  text-align: center;
+}
+
+.modal-actions {
+  padding: 16px 24px;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel-btn {
+  color: #8b5a2b !important;
+}
+
+.save-btn {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  color: white !important;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.save-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(22, 163, 74, 0.4);
+}
+
+/* =======================
+   RESPONSIVE
+======================= */
+@media (max-width: 1200px) {
+  .week-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .calendar-page {
+    padding: 20px 12px;
+  }
+
+  .week-title {
+    font-size: 20px;
+  }
+
+  .week-grid {
+    gap: 14px;
+  }
+
+  .day-card {
+    min-height: 380px;
+  }
+}
+
+@media (max-width: 600px) {
+  .week-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
