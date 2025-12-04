@@ -43,10 +43,14 @@ const router = createRouter({
 
 // (Opcional) Proteger rutas si quieres
 router.beforeEach((to, from, next) => {
-  if (to.name !== "Login" && !session.token) {
+  const publicRoutes = ["Login", "Register", "Inicio"]; // rutas que no requieren login
+
+  if (!publicRoutes.includes(to.name) && !session.token) {
     return next("/login");
   }
+
   next();
 });
+;
 
 export default router;

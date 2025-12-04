@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token
 from config import Config
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -101,7 +102,8 @@ def login():
     if not usuario or not bcrypt.check_password_hash(usuario.password, password):
         return jsonify({"error": "Credenciales incorrectas"}), 401
 
-    token = create_access_token(identity=usuario.id)
+    token = create_access_token(identity=str(usuario.id))
+
 
     return jsonify({
         "mensaje": "Inicio de sesión correcto",
@@ -117,14 +119,39 @@ def login():
 
 # ----- OBTENER TAREAS -----
 @app.route("/api/tareas", methods=["GET"])
+@jwt_required()
 def obtener_tareas():
-    tareas = Tarea.query.all()
+    usuario_id = get_jwt_identity()
+    tareas = Tarea.query.filter_by(usuario_id=usuario_id).all()
     return jsonify([t.to_dict() for t in tareas]), 200
+
 
 
 # ----- CREAR TAREA -----
 @app.route("/api/tareas", methods=["POST"])
+@jwt_required()
 def crear_tarea():
+    usuario_id = get_jwt_identity()
+
+    data = request.get_json()
+    titulo = data.get("titulo")
+
+    if not titulo:
+        return jsonify({"error": "El título es obligatorio"}), 400
+
+    nueva_tarea = Tarea(
+        titulo=titulo,
+        descripcion=data.get("descripcion"),
+        prioridad=data.get("prioridad"),
+        fecha_limite=data.get("fecha_limite"),
+        usuario_id=usuario_id
+    )
+
+    db.session.add(nueva_tarea)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Tarea creada correctamente"}), 201
+
     data = request.get_json()
 
     titulo = data.get("titulo")
@@ -152,7 +179,26 @@ def crear_tarea():
 
 # ----- ACTUALIZAR TAREA -----
 @app.route("/api/tareas/<int:tarea_id>", methods=["PUT"])
+@jwt_required()
 def actualizar_tarea(tarea_id):
+
+    usuario_id = get_jwt_identity()
+    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=usuario_id).first()
+
+    if not tarea:
+        return jsonify({"error": "Tarea no encontrada o no autorizada"}), 404
+
+    data = request.get_json()
+
+    tarea.titulo = data.get("titulo", tarea.titulo)
+    tarea.descripcion = data.get("descripcion", tarea.descripcion)
+    tarea.completada = data.get("completada", tarea.completada)
+    tarea.prioridad = data.get("prioridad", tarea.prioridad)
+    tarea.fecha_limite = data.get("fecha_limite", tarea.fecha_limite)
+
+    db.session.commit()
+    return jsonify({"mensaje": "Tarea actualizada correctamente"}), 200
+
     tarea = Tarea.query.filter_by(id=tarea_id).first()
 
     if not tarea:
@@ -172,7 +218,20 @@ def actualizar_tarea(tarea_id):
 
 # ----- ELIMINAR TAREA -----
 @app.route("/api/tareas/<int:tarea_id>", methods=["DELETE"])
+@jwt_required()
 def eliminar_tarea(tarea_id):
+
+    usuario_id = get_jwt_identity()
+    tarea = Tarea.query.filter_by(id=tarea_id, usuario_id=usuario_id).first()
+
+    if not tarea:
+        return jsonify({"error": "Tarea no encontrada o no autorizada"}), 404
+
+    db.session.delete(tarea)
+    db.session.commit()
+
+    return jsonify({"mensaje": "Tarea eliminada correctamente"}), 200
+
     tarea = Tarea.query.filter_by(id=tarea_id).first()
 
     if not tarea:

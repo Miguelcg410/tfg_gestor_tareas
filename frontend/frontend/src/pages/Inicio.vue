@@ -28,6 +28,16 @@ function entrar() {
     <div class="hero-content">
       <h1 class="hero-title">Order Dragon</h1>
       <p class="hero-sub">Organiza tu vida con fuego, poder y precisión.</p>
+      <p>Order Dragon es una herramienta diseñada para ayudarte a gestionar tus tareas y tu tiempo de forma clara, eficiente y visual.
+
+Con un sistema intuitivo y un diseño inspirado en el poder del fuego y los dragones, podrás:
+
+  Priorizar tus tareas.
+  Visualizar tu semana de un vistazo.
+  Mantener tu productividad sin esfuerzo.
+
+Domina tu día.
+Activa la llama y toma el control.</p>
 
       <button class="hero-btn" @click="entrar">
         Entrar

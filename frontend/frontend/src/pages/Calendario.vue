@@ -10,8 +10,49 @@ const dialogNota = ref(false);
 
 function abrirNota(nota) {
   notaSeleccionada.value = nota;
+  notaEditada.value = {
+    titulo: nota.titulo,
+    descripcion: nota.descripcion,
+    prioridad: nota.prioridad,
+  };
+  editando.value = false;
   dialogNota.value = true;
 }
+async function guardarCambiosNota() {
+  if (!notaSeleccionada.value) return;
+
+  try {
+    await api.put(`/tareas/${notaSeleccionada.value.id}`, {
+      titulo: notaEditada.value.titulo,
+      descripcion: notaEditada.value.descripcion,
+      prioridad: notaEditada.value.prioridad,
+      fecha_limite: notaSeleccionada.value.fecha_limite,
+    });
+
+    dialogNota.value = false;
+    await cargarTareas();
+
+  } catch (e) {
+    console.error("Error actualizando nota", e);
+  }
+}
+async function eliminarNota() {
+  if (!notaSeleccionada.value) return;
+
+  const confirmar = confirm("¿Seguro que quieres eliminar esta nota?");
+  if (!confirmar) return;
+
+  try {
+    await api.delete(`/tareas/${notaSeleccionada.value.id}`);
+
+    dialogNota.value = false;
+    await cargarTareas();
+
+  } catch (e) {
+    console.error("Error eliminando nota", e);
+  }
+}
+
 
 // =======================
 // TAREAS DEL BACKEND
@@ -36,6 +77,13 @@ const diaNotas = computed(() => {
     mapa[t.fecha_limite].push(t);
   }
   return mapa;
+});
+const editando = ref(false);
+
+const notaEditada = ref({
+  titulo: "",
+  descripcion: "",
+  prioridad: "",
 });
 
 // =======================
@@ -215,44 +263,98 @@ onMounted(() => cargarTareas());
       </div>
 
       <!-- MODAL NOTA AMPLIADA -->
-      <v-dialog v-model="dialogNota" max-width="520">
-        <v-card class="nota-expandida">
+<v-dialog v-model="dialogNota" max-width="520">
+  <v-card class="nota-expandida">
+
 
           <div class="sello-arcano"></div>
 
-          <v-card-title class="titulo-expandido">
-            🐉 {{ notaSeleccionada?.titulo }}
-          </v-card-title>
+<v-card-title class="titulo-expandido">
+  🐉 {{ editando ? "Editar Nota" : notaSeleccionada?.titulo }}
+</v-card-title>
 
-          <v-card-text class="cuerpo-nota">
-            <div class="desc-expandida">{{ notaSeleccionada?.descripcion }}</div>
+<v-card-text class="cuerpo-nota">
 
-            <div class="meta-info">
-              <div class="meta-item">
-                <v-icon size="18" color="#8b5a2b">mdi-flag</v-icon>
-                Prioridad: 
-                <span class="prio-badge-modal" :class="`prio-${notaSeleccionada?.prioridad}`">
-                  {{ notaSeleccionada?.prioridad }}
-                </span>
-              </div>
+  <!-- MODO LECTURA -->
+  <template v-if="!editando">
+    <div class="desc-expandida">{{ notaSeleccionada?.descripcion }}</div>
 
-              <div class="meta-item">
-                <v-icon size="18" color="#8b5a2b">mdi-calendar</v-icon>
-                Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
-              </div>
-            </div>
-          </v-card-text>
+    <div class="meta-info">
+      <div class="meta-item">
+        <v-icon size="18" color="#8b5a2b">mdi-flag</v-icon>
+        Prioridad:
+        <span class="prio-badge-modal" :class="`prio-${notaSeleccionada?.prioridad}`">
+          {{ notaSeleccionada?.prioridad }}
+        </span>
+      </div>
 
-          <v-card-actions class="acciones-modal">
-            <v-spacer />
-            <v-btn 
-              class="cerrar-btn" 
-              @click="dialogNota = false"
-            >
-              <v-icon left>mdi-close-circle</v-icon>
-              Cerrar
-            </v-btn>
-          </v-card-actions>
+      <div class="meta-item">
+        <v-icon size="18" color="#8b5a2b">mdi-calendar</v-icon>
+        Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
+      </div>
+    </div>
+  </template>
+
+  <!-- MODO EDICIÓN -->
+  <template v-else>
+    <v-text-field
+      label="Título"
+      v-model="notaEditada.titulo"
+      variant="outlined"
+      class="mb-3"
+    />
+
+    <v-textarea
+      label="Descripción"
+      v-model="notaEditada.descripcion"
+      variant="outlined"
+      rows="4"
+      class="mb-3"
+    />
+
+    <v-select
+      label="Prioridad"
+      v-model="notaEditada.prioridad"
+      :items="['alta','media','baja']"
+      variant="outlined"
+    />
+  </template>
+
+</v-card-text>
+
+<v-card-actions class="acciones-modal">
+  <v-spacer />
+
+  <v-btn class="cerrar-btn" @click="dialogNota = false">
+    <v-icon left>mdi-close-circle</v-icon>
+    Cerrar
+  </v-btn>
+
+  <v-btn class="delete-btn" @click="eliminarNota">
+    <v-icon left>mdi-trash-can</v-icon>
+    Eliminar
+  </v-btn>
+
+  <v-btn
+    class="save-btn"
+    v-if="!editando"
+    @click="editando = true"
+  >
+    <v-icon left>mdi-pencil</v-icon>
+    Editar
+  </v-btn>
+
+  <v-btn
+    class="save-btn"
+    v-else
+    @click="guardarCambiosNota"
+  >
+    <v-icon left>mdi-content-save</v-icon>
+    Guardar
+  </v-btn>
+
+</v-card-actions>
+
 
         </v-card>
       </v-dialog>
@@ -728,6 +830,17 @@ onMounted(() => cargarTareas());
 .save-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 4px 15px rgba(22, 163, 74, 0.4);
+}
+.delete-btn {
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+  color: white !important;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.delete-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
 }
 
 /* =======================
