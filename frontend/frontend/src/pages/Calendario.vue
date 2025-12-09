@@ -2,11 +2,32 @@
 import { ref, computed, onMounted } from "vue";
 import api from "../services/api";
 
-// =======================
-// NOTA SELECCIONADA
-// =======================
+/* ======================================================
+   FORMATOS DE FECHA (FIX PRINCIPAL)
+====================================================== */
+function toISODateLocal(date) {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split("T")[0];
+}
+
+/* ======================================================
+   ESTADO Y MODOS
+====================================================== */
+const modoVista = ref("semana");
+
+/* ======================================================
+   NOTAS
+====================================================== */
 const notaSeleccionada = ref(null);
 const dialogNota = ref(false);
+const editando = ref(false);
+
+const notaEditada = ref({
+  titulo: "",
+  descripcion: "",
+  prioridad: "",
+});
 
 function abrirNota(nota) {
   notaSeleccionada.value = nota;
@@ -18,57 +39,55 @@ function abrirNota(nota) {
   editando.value = false;
   dialogNota.value = true;
 }
+
 async function guardarCambiosNota() {
   if (!notaSeleccionada.value) return;
 
   try {
     await api.put(`/tareas/${notaSeleccionada.value.id}`, {
-      titulo: notaEditada.value.titulo,
-      descripcion: notaEditada.value.descripcion,
-      prioridad: notaEditada.value.prioridad,
+      ...notaEditada.value,
       fecha_limite: notaSeleccionada.value.fecha_limite,
     });
 
     dialogNota.value = false;
     await cargarTareas();
-
   } catch (e) {
     console.error("Error actualizando nota", e);
   }
 }
+
 async function eliminarNota() {
   if (!notaSeleccionada.value) return;
 
-  const confirmar = confirm("¿Seguro que quieres eliminar esta nota?");
-  if (!confirmar) return;
+  if (!confirm("¿Seguro que quieres eliminar esta nota?")) return;
 
   try {
     await api.delete(`/tareas/${notaSeleccionada.value.id}`);
-
     dialogNota.value = false;
     await cargarTareas();
-
   } catch (e) {
     console.error("Error eliminando nota", e);
   }
 }
 
-
-// =======================
-// TAREAS DEL BACKEND
-// =======================
+/* ======================================================
+   TAREAS DEL BACKEND
+====================================================== */
 const tareas = ref([]);
 
 async function cargarTareas() {
   try {
     const res = await api.get("/tareas");
-    tareas.value = res.data;
+
+    tareas.value = res.data.map(t => ({
+      ...t,
+      fecha_limite: toISODateLocal(t.fecha_limite)
+    }));
   } catch (e) {
-    console.error("Error cargando tareas para el calendario", e);
+    console.error("Error cargando tareas", e);
   }
 }
 
-// Agrupamos tareas por fecha_limite
 const diaNotas = computed(() => {
   const mapa = {};
   for (const t of tareas.value) {
@@ -78,21 +97,15 @@ const diaNotas = computed(() => {
   }
   return mapa;
 });
-const editando = ref(false);
 
-const notaEditada = ref({
-  titulo: "",
-  descripcion: "",
-  prioridad: "",
-});
+/* ======================================================
+   VISTA SEMANAL
+====================================================== */
 
-// =======================
-// FECHAS Y SEMANAS
-// =======================
 const hoy = new Date();
 const semanaActual = ref(0);
 
-function obtenerLunes(offset = 0) {
+function obtenerLunes(offset) {
   const fecha = new Date(hoy);
   const dia = fecha.getDay();
   const lunes = fecha.getDate() - (dia === 0 ? 6 : dia - 1);
@@ -103,29 +116,98 @@ function obtenerLunes(offset = 0) {
 const semanaCompleta = computed(() => {
   const lunes = obtenerLunes(semanaActual.value);
   const dias = [];
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(lunes);
     d.setDate(lunes.getDate() + i);
+
     dias.push({
       fecha: d,
       nombre: d.toLocaleDateString("es-ES", { weekday: "long" }),
       fechaTexto: d.toLocaleDateString("es-ES", { day: "numeric", month: "short" }),
-      fechaISO: d.toISOString().split("T")[0],
+      fechaISO: toISODateLocal(d),
     });
   }
+
   return dias;
 });
 
 const inicioSemana = computed(() => semanaCompleta.value[0].fecha);
 const finSemana = computed(() => semanaCompleta.value[6].fecha);
 
-function formatoFechaSemana(f) {
-  return f.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+/* ======================================================
+   VISTA MENSUAL
+====================================================== */
+
+const mesActual = ref(new Date().getMonth());
+const anioActual = ref(new Date().getFullYear());
+
+const mesCompleto = computed(() => {
+  const primerDia = new Date(anioActual.value, mesActual.value, 1);
+  const ultimoDia = new Date(anioActual.value, mesActual.value + 1, 0);
+
+  const dias = [];
+
+  const diaSemana = primerDia.getDay() || 7;
+  for (let i = diaSemana - 2; i >= 0; i--) {
+    const d = new Date(primerDia);
+    d.setDate(d.getDate() - i - 1);
+    dias.push({
+      fecha: d,
+      dia: d.getDate(),
+      fechaISO: toISODateLocal(d),
+      mesActual: false,
+    });
+  }
+
+  for (let i = 1; i <= ultimoDia.getDate(); i++) {
+    const d = new Date(anioActual.value, mesActual.value, i);
+    dias.push({
+      fecha: d,
+      dia: i,
+      fechaISO: toISODateLocal(d),
+      mesActual: true,
+    });
+  }
+
+  while (dias.length < 42) {
+    const last = dias[dias.length - 1].fecha;
+    const d = new Date(last);
+    d.setDate(d.getDate() + 1);
+
+    dias.push({
+      fecha: d,
+      dia: d.getDate(),
+      fechaISO: toISODateLocal(d),
+      mesActual: false,
+    });
+  }
+
+  return dias;
+});
+
+const nombreMes = computed(() => {
+  const fecha = new Date(anioActual.value, mesActual.value, 1);
+  return fecha.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+});
+
+function mesAnterior() {
+  if (mesActual.value === 0) {
+    mesActual.value = 11;
+    anioActual.value--;
+  } else mesActual.value--;
 }
 
-// =======================
-// CREAR NOTA
-// =======================
+function mesSiguiente() {
+  if (mesActual.value === 11) {
+    mesActual.value = 0;
+    anioActual.value++;
+  } else mesActual.value++;
+}
+
+/* ======================================================
+   CREAR NOTAS
+====================================================== */
 const diaSeleccionado = ref("");
 const nuevaNota = ref("");
 const dialog = ref(false);
@@ -146,6 +228,7 @@ async function guardarNota() {
       prioridad: "media",
       fecha_limite: diaSeleccionado.value,
     });
+
     dialog.value = false;
     nuevaNota.value = "";
     await cargarTareas();
@@ -154,62 +237,76 @@ async function guardarNota() {
   }
 }
 
-// =======================
-// EXPANDIR DÍA
-// =======================
+/* ======================================================
+   EXPANDIR DÍA
+====================================================== */
 const diaExpandido = ref(null);
 
 function toggleExpand(fechaISO) {
   diaExpandido.value = diaExpandido.value === fechaISO ? null : fechaISO;
 }
 
-// =======================
-// NAVEGAR SEMANAS
-// =======================
-function semanaAnterior() {
-  semanaActual.value--;
-}
+/* ======================================================
+   NAVEGAR
+====================================================== */
+function semanaAnterior() { semanaActual.value--; }
+function semanaSiguiente() { semanaActual.value++; }
 
-function semanaSiguiente() {
-  semanaActual.value++;
-}
-
-// =======================
-// INICIO
-// =======================
+/* ======================================================
+   INICIO
+====================================================== */
 onMounted(() => cargarTareas());
 </script>
 
 <template>
   <div class="calendar-page">
     <div class="calendar-inner">
-      
+
       <!-- CABECERA -->
       <div class="week-header">
-        <v-btn 
-          icon 
-          class="nav-week-btn" 
-          @click="semanaAnterior"
-        >
+        <v-btn icon class="nav-week-btn" @click="modoVista === 'semana' ? semanaAnterior() : mesAnterior()">
           <v-icon>mdi-chevron-left</v-icon>
         </v-btn>
 
-        <h2 class="week-title">
-          Semana del {{ formatoFechaSemana(inicioSemana) }}
-          al {{ formatoFechaSemana(finSemana) }}
-        </h2>
+        <div class="header-center">
+  <h2 class="week-title">
+    {{ modoVista === "semana"
+      ? `Semana del ${inicioSemana.toLocaleDateString('es-ES')} al ${finSemana.toLocaleDateString('es-ES')}`
+      : nombreMes
+    }}
+  </h2>
+</div>
 
-        <v-btn 
-          icon 
-          class="nav-week-btn" 
-          @click="semanaSiguiente"
-        >
+<div class="view-right">
+  <div class="view-selector">
+    <v-btn
+      :class="['view-btn', { active: modoVista === 'semana' }]"
+      @click="modoVista = 'semana'"
+      size="small"
+    >
+      <v-icon left size="18">mdi-calendar-week</v-icon>
+      Semana
+    </v-btn>
+
+    <v-btn
+      :class="['view-btn', { active: modoVista === 'mes' }]"
+      @click="modoVista = 'mes'"
+      size="small"
+    >
+      <v-icon left size="18">mdi-calendar-month</v-icon>
+      Mes
+    </v-btn>
+  </div>
+</div>
+
+
+        <v-btn icon class="nav-week-btn" @click="modoVista === 'semana' ? semanaSiguiente() : mesSiguiente()">
           <v-icon>mdi-chevron-right</v-icon>
         </v-btn>
       </div>
 
-      <!-- GRID -->
-      <div class="week-grid">
+      <!-- ================= VISTA SEMANAL ================= -->
+      <div v-if="modoVista === 'semana'" class="week-grid">
         <div
           v-for="dia in semanaCompleta"
           :key="dia.fechaISO"
@@ -224,7 +321,6 @@ onMounted(() => cargarTareas());
 
           <v-divider class="my-2 divider-custom" />
 
-          <!-- CAJA DE NOTAS -->
           <div class="notes-box">
             <div
               v-for="(nota, i) in diaNotas[dia.fechaISO]"
@@ -241,121 +337,134 @@ onMounted(() => cargarTareas());
               </div>
             </div>
 
-            <div
-              v-if="!diaNotas[dia.fechaISO] || diaNotas[dia.fechaISO].length === 0"
-              class="empty-notes"
-            >
+            <div v-if="!diaNotas[dia.fechaISO]" class="empty-notes">
               📜 No hay notas
             </div>
           </div>
 
-          <!-- BOTÓN AÑADIR -->
-          <v-btn 
-            block 
-            class="add-note-btn mt-2" 
-            @click.stop="abrirDialog(dia.fechaISO)"
-          >
+          <v-btn block class="add-note-btn mt-2" @click.stop="abrirDialog(dia.fechaISO)">
             <v-icon left>mdi-plus-circle</v-icon>
             Añadir nota
           </v-btn>
-
         </div>
       </div>
 
-      <!-- MODAL NOTA AMPLIADA -->
-<v-dialog v-model="dialogNota" max-width="520">
-  <v-card class="nota-expandida">
+      <!-- ================= VISTA MENSUAL ================= -->
+      <div v-else class="month-view">
 
+        <div class="month-header">
+          <div class="day-name-cell">Lun</div>
+          <div class="day-name-cell">Mar</div>
+          <div class="day-name-cell">Mié</div>
+          <div class="day-name-cell">Jue</div>
+          <div class="day-name-cell">Vie</div>
+          <div class="day-name-cell">Sáb</div>
+          <div class="day-name-cell">Dom</div>
+        </div>
 
-          <div class="sello-arcano"></div>
+        <div class="month-grid">
+          <div
+            v-for="dia in mesCompleto"
+            :key="dia.fechaISO"
+            class="month-day-card"
+            :class="{
+              'not-current-month': !dia.mesActual,
+              'has-notes': diaNotas[dia.fechaISO]
+            }"
+            @click="abrirDialog(dia.fechaISO)"
+          >
+            <div class="month-day-number">{{ dia.dia }}</div>
 
-<v-card-title class="titulo-expandido">
-  🐉 {{ editando ? "Editar Nota" : notaSeleccionada?.titulo }}
-</v-card-title>
+            <div class="month-notes-mini">
+              <div
+                v-for="(nota, i) in (diaNotas[dia.fechaISO] || []).slice(0, 3)"
+                :key="i"
+                class="mini-note"
+                :class="`mini-note-${nota.prioridad}`"
+                @click.stop="abrirNota(nota)"
+              >
+                {{ nota.titulo }}
+              </div>
 
-<v-card-text class="cuerpo-nota">
+              <div
+                v-if="diaNotas[dia.fechaISO] && diaNotas[dia.fechaISO].length > 3"
+                class="more-notes"
+              >
+                +{{ diaNotas[dia.fechaISO].length - 3 }} más
+              </div>
+            </div>
+          </div>
+        </div>
 
-  <!-- MODO LECTURA -->
-  <template v-if="!editando">
-    <div class="desc-expandida">{{ notaSeleccionada?.descripcion }}</div>
-
-    <div class="meta-info">
-      <div class="meta-item">
-        <v-icon size="18" color="#8b5a2b">mdi-flag</v-icon>
-        Prioridad:
-        <span class="prio-badge-modal" :class="`prio-${notaSeleccionada?.prioridad}`">
-          {{ notaSeleccionada?.prioridad }}
-        </span>
       </div>
 
-      <div class="meta-item">
-        <v-icon size="18" color="#8b5a2b">mdi-calendar</v-icon>
-        Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
-      </div>
-    </div>
-  </template>
+      <!-- MODAL NOTA -->
+      <v-dialog v-model="dialogNota" max-width="520">
+        <v-card class="nota-expandida">
+          
+          <v-card-title class="titulo-expandido">
+            🐉 {{ editando ? "Editar Nota" : notaSeleccionada?.titulo }}
+          </v-card-title>
 
-  <!-- MODO EDICIÓN -->
-  <template v-else>
-    <v-text-field
-      label="Título"
-      v-model="notaEditada.titulo"
-      variant="outlined"
-      class="mb-3"
-    />
+          <v-card-text class="cuerpo-nota">
 
-    <v-textarea
-      label="Descripción"
-      v-model="notaEditada.descripcion"
-      variant="outlined"
-      rows="4"
-      class="mb-3"
-    />
+            <template v-if="!editando">
+              <div class="desc-expandida">{{ notaSeleccionada?.descripcion }}</div>
 
-    <v-select
-      label="Prioridad"
-      v-model="notaEditada.prioridad"
-      :items="['alta','media','baja']"
-      variant="outlined"
-    />
-  </template>
+              <div class="meta-info">
+                <div class="meta-item">
+                  <v-icon size="18">mdi-flag</v-icon>
+                  Prioridad:
+                  <span class="prio-badge-modal" :class="`prio-${notaSeleccionada?.prioridad}`">
+                    {{ notaSeleccionada?.prioridad }}
+                  </span>
+                </div>
 
-</v-card-text>
+                <div class="meta-item">
+                  <v-icon size="18">mdi-calendar</v-icon>
+                  Fecha: <strong>{{ notaSeleccionada?.fecha_limite }}</strong>
+                </div>
+              </div>
+            </template>
 
-<v-card-actions class="acciones-modal">
-  <v-spacer />
+            <template v-else>
+              <v-text-field label="Título" v-model="notaEditada.titulo" variant="outlined" class="mb-3" />
 
-  <v-btn class="cerrar-btn" @click="dialogNota = false">
-    <v-icon left>mdi-close-circle</v-icon>
-    Cerrar
-  </v-btn>
+              <v-textarea label="Descripción" v-model="notaEditada.descripcion" variant="outlined" rows="4" />
 
-  <v-btn class="delete-btn" @click="eliminarNota">
-    <v-icon left>mdi-trash-can</v-icon>
-    Eliminar
-  </v-btn>
+              <v-select
+                label="Prioridad"
+                v-model="notaEditada.prioridad"
+                :items="['alta','media','baja']"
+                variant="outlined"
+              />
+            </template>
 
-  <v-btn
-    class="save-btn"
-    v-if="!editando"
-    @click="editando = true"
-  >
-    <v-icon left>mdi-pencil</v-icon>
-    Editar
-  </v-btn>
+          </v-card-text>
 
-  <v-btn
-    class="save-btn"
-    v-else
-    @click="guardarCambiosNota"
-  >
-    <v-icon left>mdi-content-save</v-icon>
-    Guardar
-  </v-btn>
+          <v-card-actions class="acciones-modal">
+            <v-spacer />
 
-</v-card-actions>
+            <v-btn class="cerrar-btn" @click="dialogNota = false">
+              <v-icon left>mdi-close-circle</v-icon>
+              Cerrar
+            </v-btn>
 
+            <v-btn class="delete-btn" @click="eliminarNota">
+              <v-icon left>mdi-trash-can</v-icon>
+              Eliminar
+            </v-btn>
 
+            <v-btn v-if="!editando" class="save-btn" @click="editando = true">
+              <v-icon left>mdi-pencil</v-icon>
+              Editar
+            </v-btn>
+
+            <v-btn v-else class="save-btn" @click="guardarCambiosNota">
+              <v-icon left>mdi-content-save</v-icon>
+              Guardar
+            </v-btn>
+          </v-card-actions>
         </v-card>
       </v-dialog>
 
@@ -363,18 +472,14 @@ onMounted(() => cargarTareas());
       <v-dialog v-model="dialog" max-width="450">
         <v-card class="papiro-modal">
           <v-card-title class="modal-title">
-            <v-icon left color="#8b5a2b">mdi-feather</v-icon>
+            <v-icon left>mdi-feather</v-icon>
             Añadir nota
           </v-card-title>
+
           <v-card-text>
-            <v-textarea 
-              v-model="nuevaNota" 
-              label="Escribe tu nota aquí..." 
-              rows="4"
-              variant="outlined"
-              class="nota-textarea"
-            />
+            <v-textarea v-model="nuevaNota" label="Escribe tu nota aquí..." rows="4" variant="outlined" />
           </v-card-text>
+
           <v-card-actions class="modal-actions">
             <v-btn text class="cancel-btn" @click="dialog = false">
               Cancelar
@@ -384,6 +489,7 @@ onMounted(() => cargarTareas());
               Guardar
             </v-btn>
           </v-card-actions>
+
         </v-card>
       </v-dialog>
 
@@ -841,6 +947,126 @@ onMounted(() => cargarTareas());
 .delete-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+}
+/* =======================
+   VISTA MENSUAL FIX
+======================= */
+
+.month-view {
+  animation: fadeIn 0.8s ease;
+}
+
+.month-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.day-name-cell {
+  text-align: center;
+  font-family: "Cinzel", serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffcc88;
+  padding: 12px;
+  background: rgba(255, 170, 80, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 170, 80, 0.2);
+}
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.month-day-card {
+  background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%);
+  border: 2px solid #2e2e2e;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 120px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.month-day-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 170, 80, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+.month-day-card.not-current-month {
+  opacity: 0.3;
+}
+
+.month-day-card.has-notes {
+  border-color: rgba(255, 170, 80, 0.4);
+  background: linear-gradient(145deg, #1f1a15 0%, #1a1510 100%);
+}
+
+.month-day-number {
+  font-family: "Cinzel", serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffe7cf;
+  margin-bottom: 8px;
+}
+
+.month-notes-mini {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-note {
+  font-family: "Cinzel", serif;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.mini-note:hover {
+  transform: scale(1.05);
+  z-index: 10;
+}
+
+.mini-note-alta {
+  background: rgba(220, 38, 38, 0.3);
+  color: #ff6b6b;
+  border-left: 3px solid #dc2626;
+}
+
+.mini-note-media {
+  background: rgba(234, 179, 8, 0.3);
+  color: #ffd666;
+  border-left: 3px solid #eab308;
+}
+
+.mini-note-baja {
+  background: rgba(34, 197, 94, 0.3);
+  color: #66ff99;
+  border-left: 3px solid #22c55e;
+}
+
+.more-notes {
+  font-size: 10px;
+  color: #999;
+  text-align: center;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 /* =======================
