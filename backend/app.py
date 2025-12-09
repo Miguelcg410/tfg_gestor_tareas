@@ -5,7 +5,7 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 import requests
-from urllib.parse import quote   # <<< NECESARIO PARA ENCODEAR EMAILS
+from urllib.parse import quote
 
 # Configuración Supabase
 from supabase_client import SUPABASE_URL, SUPABASE_HEADERS
@@ -17,9 +17,18 @@ CORS(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
+
 # ================================================================
 # FUNCIONES AUXILIARES
 # ================================================================
+def parse_json_response(res):
+    """Evita que el servidor explote si Supabase devuelve 204 o cuerpo vacío."""
+    try:
+        return res.json()
+    except:
+        return {"status": res.status_code, "text": res.text}
+
+
 def supabase_url(table, filters=None):
     base = f"{SUPABASE_URL}/rest/v1/{table}"
     if not filters:
@@ -50,30 +59,26 @@ def register():
     if not nombre or not email or not password:
         return jsonify({"error": "Faltan campos obligatorios"}), 400
 
-    # ENCODEAR EMAIL PARA CONSULTAR
     email_encoded = quote(email)
 
-    # Verificar si ya existe
     url = f"{SUPABASE_URL}/rest/v1/usuarios?email=eq.{email_encoded}&select=*"
-    print("URL CHECK REGISTER:", url)
     res = requests.get(url, headers=SUPABASE_HEADERS).json()
 
     if isinstance(res, list) and len(res) > 0 and res[0].get("email"):
         return jsonify({"error": "El correo ya está registrado"}), 400
 
-    # Hashear contraseña
     hashed_password = bcrypt.generate_password_hash(password).decode("utf-8")
 
-    # Insertar usuario
-    url = f"{SUPABASE_URL}/rest/v1/usuarios"
-    nuevo = requests.post(url, headers=SUPABASE_HEADERS, json={
+    # IMPORTANTÍSIMO: pedir JSON a Supabase
+    url = f"{SUPABASE_URL}/rest/v1/usuarios?select=*"
+    res = requests.post(url, headers=SUPABASE_HEADERS, json={
         "nombre": nombre,
         "email": email,
         "password": hashed_password,
         "rol": "usuario"
-    }).json()
+    })
 
-    return jsonify({"mensaje": "Usuario registrado con éxito"}), 201
+    return jsonify(parse_json_response(res)), 201
 
 
 # ================================================================
@@ -85,22 +90,17 @@ def login():
     email = data.get("email")
     password = data.get("password")
 
-    # ENCODE EMAIL
     email_encoded = quote(email)
 
-    # Buscar usuario
     url = f"{SUPABASE_URL}/rest/v1/usuarios?email=eq.{email_encoded}&select=*"
 
-    print("LOGIN: URL ENVIADA:", url)
     res = requests.get(url, headers=SUPABASE_HEADERS).json()
-    print("RESPUESTA SUPABASE:", res)
 
     if not isinstance(res, list) or len(res) == 0:
         return jsonify({"error": "Credenciales incorrectas"}), 401
 
     usuario = res[0]
 
-    # Verificar contraseña
     if not bcrypt.check_password_hash(usuario["password"], password):
         return jsonify({"error": "Credenciales incorrectas"}), 401
 
@@ -125,10 +125,8 @@ def login():
 @jwt_required()
 def obtener_tareas():
     usuario_id = get_jwt_identity()
-
     url = supabase_url("tareas", {"usuario_id": usuario_id})
     res = requests.get(url, headers=SUPABASE_HEADERS).json()
-
     return jsonify(res), 200
 
 
@@ -145,17 +143,20 @@ def crear_tarea():
     if not titulo:
         return jsonify({"error": "El título es obligatorio"}), 400
 
-    url = f"{SUPABASE_URL}/rest/v1/tareas"
-    nueva = requests.post(url, headers=SUPABASE_HEADERS, json={
+    url = f"{SUPABASE_URL}/rest/v1/tareas?select=*"
+
+    payload = {
         "titulo": titulo,
         "descripcion": data.get("descripcion"),
         "prioridad": data.get("prioridad", "media"),
         "fecha_limite": data.get("fecha_limite") or None,
         "usuario_id": usuario_id,
         "completada": False
-    }).json()
+    }
 
-    return jsonify(nueva), 201
+    res = requests.post(url, headers=SUPABASE_HEADERS, json=payload)
+
+    return jsonify(parse_json_response(res)), res.status_code
 
 
 # ================================================================
@@ -173,10 +174,10 @@ def actualizar_tarea(tarea_id):
     if not existe:
         return jsonify({"error": "Tarea no encontrada o no autorizada"}), 404
 
-    url = supabase_url("tareas", {"id": tarea_id})
-    actualizado = requests.patch(url, headers=SUPABASE_HEADERS, json=data).json()
+    url = f"{SUPABASE_URL}/rest/v1/tareas?id=eq.{tarea_id}&select=*"
+    res = requests.patch(url, headers=SUPABASE_HEADERS, json=data)
 
-    return jsonify(actualizado), 200
+    return jsonify(parse_json_response(res)), res.status_code
 
 
 # ================================================================
@@ -193,32 +194,11 @@ def eliminar_tarea(tarea_id):
     if not existe:
         return jsonify({"error": "Tarea no encontrada o no autorizada"}), 404
 
-    url = supabase_url("tareas", {"id": tarea_id})
-    requests.delete(url, headers=SUPABASE_HEADERS)
+    url = f"{SUPABASE_URL}/rest/v1/tareas?id=eq.{tarea_id}"
 
-    return jsonify({"mensaje": "Tarea eliminada correctamente"}), 200
+    res = requests.delete(url, headers=SUPABASE_HEADERS)
 
-
-# ================================================================
-# TAREAS POR FECHA
-# ================================================================
-@app.route("/api/tareas_por_fecha", methods=["GET"])
-@jwt_required()
-def tareas_por_fecha():
-    usuario_id = get_jwt_identity()
-    fecha = request.args.get("fecha")
-
-    if not fecha:
-        return jsonify({"error": "Falta la fecha"}), 400
-
-    url = supabase_url("tareas", {
-        "usuario_id": usuario_id,
-        "fecha_limite": fecha
-    })
-
-    res = requests.get(url, headers=SUPABASE_HEADERS).json()
-
-    return jsonify(res), 200
+    return jsonify({"mensaje": "Tarea eliminada"}), res.status_code
 
 
 # ================================================================
