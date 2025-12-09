@@ -150,7 +150,7 @@ def crear_tarea():
         "titulo": titulo,
         "descripcion": data.get("descripcion"),
         "prioridad": data.get("prioridad", "media"),
-        "fecha_limite": data.get("fecha_limite"),
+        "fecha_limite": data.get("fecha_limite") or None,
         "usuario_id": usuario_id,
         "completada": False
     }).json()

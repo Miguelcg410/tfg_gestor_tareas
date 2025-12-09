@@ -14,7 +14,7 @@ async function crear() {
       titulo: titulo.value,
       descripcion: descripcion.value,
       prioridad: prioridad.value,
-      fecha_limite: fechaLimite.value,
+      fecha_limite: fechaLimite.value || null,
     });
 
     mensaje.value = "Tarea creada con éxito";
